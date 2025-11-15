@@ -89,11 +89,31 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ data });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('API Error:', error);
-    return NextResponse.json(
-      { error: 'An error occurred while fetching data' },
-      { status: 500 }
-    );
+
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching data';
+    const errorCode = (error as { code?: string }).code;
+    const attempts = (error as { attempts?: number }).attempts;
+
+    // Extract error details for better debugging
+    const errorResponse = {
+      error: errorMessage,
+      code: errorCode || 'UNKNOWN_ERROR',
+      attempts: attempts,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Determine appropriate status code
+    let statusCode = 500;
+    if (errorCode === 'PGRST301' || errorCode === 'PGRST302') {
+      statusCode = 401; // Authentication errors
+    } else if (errorMessage.includes('timeout')) {
+      statusCode = 504; // Gateway timeout
+    } else if (errorMessage.includes('connection')) {
+      statusCode = 503; // Service unavailable
+    }
+
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 } 
