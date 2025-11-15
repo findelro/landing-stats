@@ -54,7 +54,7 @@ export const getDashboardData = async (
   };
 };
 
-// Individual API functions for specific data if needed
+// Additional API function for external referrers
 export const getExternalReferrers = async (
   startDate: Date,
   endDate: Date,
@@ -65,71 +65,11 @@ export const getExternalReferrers = async (
     end_date: formatDate(endDate),
     domains: domains || null
   });
-  
+
   if (error) {
     console.error('Error fetching referrers:', error);
     return [];
   }
-  
-  return data || [];
-};
 
-export const getFilteredReferrers = async (
-  startDate: Date,
-  endDate: Date,
-  options: {
-    domains?: string[];
-    excludeSelfReferrals?: boolean;
-    groupByDomain?: boolean;
-    minViews?: number;
-    maxResults?: number;
-  } = {}
-) => {
-  const { data, error } = await supabase.rpc('get_filtered_referrers', {
-    start_date: formatDate(startDate),
-    end_date: formatDate(endDate),
-    domains: options.domains || null,
-    exclude_self_referrals: options.excludeSelfReferrals ?? true,
-    group_by_domain: options.groupByDomain ?? false,
-    min_views: options.minViews ?? 1,
-    max_results: options.maxResults ?? 100
-  });
-  
-  if (error) {
-    console.error('Error fetching filtered referrers:', error);
-    return [];
-  }
-  
-  return data || [];
-};
-
-export const getAnalyticsData = async (
-  dataType: 'referrers' | 'browsers' | 'os' | 'devices' | 'countries' | 'domains',
-  startDate: Date,
-  endDate: Date,
-  options: {
-    domains?: string[];
-    excludeSelfReferrals?: boolean;
-    groupByDomain?: boolean;
-    minViews?: number;
-    maxResults?: number;
-  } = {}
-) => {
-  const { data, error } = await supabase.rpc('get_analytics_data', {
-    data_type: dataType,
-    start_date: formatDate(startDate),
-    end_date: formatDate(endDate),
-    domains: options.domains || null,
-    exclude_self_referrals: options.excludeSelfReferrals ?? true,
-    group_by_domain: options.groupByDomain ?? false,
-    min_views: options.minViews ?? 1,
-    max_results: options.maxResults ?? 100
-  });
-  
-  if (error) {
-    console.error(`Error fetching ${dataType} data:`, error);
-    return [];
-  }
-  
   return data || [];
 }; 
