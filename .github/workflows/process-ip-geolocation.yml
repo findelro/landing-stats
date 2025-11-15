@@ -41,7 +41,7 @@ jobs:
 
       - name: Verify MaxMind License Key
         env:
-          MAXMIND_LICENSE_KEY: ${{ vars.MAXMIND_LICENSE_KEY }}
+          MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
         run: |
           # Debug: Show first 4 and last 4 characters of the license key
           KEY_FIRST="${MAXMIND_LICENSE_KEY:0:4}"
@@ -59,7 +59,7 @@ jobs:
       - name: Download GeoIP databases
         if: steps.geoip-cache.outputs.cache-hit != 'true'
         env:
-          MAXMIND_LICENSE_KEY: ${{ vars.MAXMIND_LICENSE_KEY }}
+          MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
         run: |
           echo "Cache miss - downloading GeoIP databases from MaxMind..."
           mkdir -p resources/geoip
