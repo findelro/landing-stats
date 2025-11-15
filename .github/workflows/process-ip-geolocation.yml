@@ -39,6 +39,23 @@ jobs:
           restore-keys: |
             geoip-
 
+      - name: Verify MaxMind License Key
+        env:
+          MAXMIND_LICENSE_KEY: ${{ vars.MAXMIND_LICENSE_KEY }}
+        run: |
+          # Debug: Show first 4 and last 4 characters of the license key
+          KEY_FIRST="${MAXMIND_LICENSE_KEY:0:4}"
+          KEY_LAST="${MAXMIND_LICENSE_KEY: -4}"
+          echo "License key check: ${KEY_FIRST}...${KEY_LAST}"
+          echo "Expected: Fwls..._mmk"
+
+          # Verify key is not empty
+          if [ -z "$MAXMIND_LICENSE_KEY" ]; then
+            echo "ERROR: MAXMIND_LICENSE_KEY is empty!"
+            exit 1
+          fi
+          echo "✓ License key is set (length: ${#MAXMIND_LICENSE_KEY})"
+
       - name: Download GeoIP databases
         if: steps.geoip-cache.outputs.cache-hit != 'true'
         env:
