@@ -1,0 +1,113 @@
+name: Process IP Geolocation
+
+on:
+  # TODO: Enable automated schedule after testing is complete
+  # schedule:
+  #   # Run every 2 hours
+  #   - cron: '0 */2 * * *'
+
+  workflow_dispatch:
+    # Manual triggering only (for testing and on-demand processing)
+
+jobs:
+  process-ip-geolocation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('scripts/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache GeoIP databases
+        uses: actions/cache@v4
+        id: geoip-cache
+        with:
+          path: resources/geoip
+          key: geoip-2024-12  # Update monthly when MaxMind releases new databases
+          restore-keys: |
+            geoip-
+
+      - name: Download GeoIP databases
+        if: steps.geoip-cache.outputs.cache-hit != 'true'
+        env:
+          MAXMIND_LICENSE_KEY: ${{ vars.MAXMIND_LICENSE_KEY }}
+        run: |
+          echo "Cache miss - downloading GeoIP databases from MaxMind..."
+          mkdir -p resources/geoip
+
+          # Download GeoLite2-Country database
+          echo "Downloading GeoLite2-Country database..."
+          curl -f -o resources/geoip/GeoLite2-Country.tar.gz \
+            "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+
+          # Download GeoLite2-City database
+          echo "Downloading GeoLite2-City database..."
+          curl -f -o resources/geoip/GeoLite2-City.tar.gz \
+            "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+
+          # Extract Country database
+          echo "Extracting GeoLite2-Country database..."
+          tar -xzf resources/geoip/GeoLite2-Country.tar.gz -C resources/geoip --strip-components=1 --wildcards '*/GeoLite2-Country.mmdb'
+
+          # Extract City database
+          echo "Extracting GeoLite2-City database..."
+          tar -xzf resources/geoip/GeoLite2-City.tar.gz -C resources/geoip --strip-components=1 --wildcards '*/GeoLite2-City.mmdb'
+
+          # Clean up tar.gz files
+          rm -f resources/geoip/*.tar.gz
+
+          # Verify files exist
+          ls -lh resources/geoip/
+          echo "GeoIP databases downloaded and extracted successfully"
+
+      - name: Verify GeoIP databases
+        run: |
+          echo "Verifying GeoIP database files..."
+          if [ ! -f "resources/geoip/GeoLite2-Country.mmdb" ]; then
+            echo "ERROR: GeoLite2-Country.mmdb not found!"
+            exit 1
+          fi
+          if [ ! -f "resources/geoip/GeoLite2-City.mmdb" ]; then
+            echo "ERROR: GeoLite2-City.mmdb not found!"
+            exit 1
+          fi
+          echo "✓ GeoLite2-Country.mmdb found ($(du -h resources/geoip/GeoLite2-Country.mmdb | cut -f1))"
+          echo "✓ GeoLite2-City.mmdb found ($(du -h resources/geoip/GeoLite2-City.mmdb | cut -f1))"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Run IP geolocation processing
+        env:
+          SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
+          SUPABASE_PSQL_DB_NAME: ${{ vars.SUPABASE_PSQL_DB_NAME }}
+          SUPABASE_PSQL_DB_USER: ${{ vars.SUPABASE_PSQL_DB_USER }}
+          SUPABASE_PSQL_DB_PASSWORD: ${{ secrets.SUPABASE_PSQL_DB_PASSWORD }}
+        run: |
+          echo "Starting IP geolocation processing..."
+          python scripts/populate_ip_geolocation.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ip-geolocation-logs-${{ github.run_number }}
+          path: logs/populate_ip_geolocation.log
+          retention-days: 7
