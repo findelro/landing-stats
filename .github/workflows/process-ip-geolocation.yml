@@ -127,6 +127,18 @@ jobs:
       - name: Create logs directory
         run: mkdir -p logs
 
+      - name: Verify database credentials
+        env:
+          SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
+          SUPABASE_PSQL_DB_NAME: ${{ vars.SUPABASE_PSQL_DB_NAME }}
+          SUPABASE_PSQL_DB_USER: ${{ vars.SUPABASE_PSQL_DB_USER }}
+        run: |
+          echo "Database connection config:"
+          echo "  Host: $SUPABASE_PSQL_DB_HOST"
+          echo "  Database: $SUPABASE_PSQL_DB_NAME"
+          echo "  User: $SUPABASE_PSQL_DB_USER"
+          echo "  Password: [hidden]"
+
       - name: Run IP geolocation processing
         env:
           SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
