@@ -3,7 +3,6 @@ export interface PageView {
   timestamp: string;
   ip: string;
   country: string;
-  city: string;
   user_agent: string;
   browser_normalized: string;
   os_normalized: string;

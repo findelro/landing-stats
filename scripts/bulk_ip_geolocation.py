@@ -44,25 +44,19 @@ logger.add("logs/bulk_ip_geolocation.log", rotation="10 MB", retention="1 month"
 # GeoLite2 database paths
 DB_DIRECTORY = Path("resources/geoip")
 COUNTRY_DB_PATH = DB_DIRECTORY / "GeoLite2-Country.mmdb"
-CITY_DB_PATH = DB_DIRECTORY / "GeoLite2-City.mmdb"
 
 # Standard codes for unknown values
 UNKNOWN_COUNTRY = "ZZ"  # Reserved code for unknown or unspecified countries
 
 
 def validate_databases():
-    """Validate that GeoIP databases exist."""
+    """Validate that GeoIP database exists."""
     if not COUNTRY_DB_PATH.exists():
         logger.error(f"GeoIP country database not found at {COUNTRY_DB_PATH}")
         logger.error("Please download from: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data")
         return False
 
-    if not CITY_DB_PATH.exists():
-        logger.error(f"GeoIP city database not found at {CITY_DB_PATH}")
-        logger.error("Please download from: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data")
-        return False
-
-    logger.info(f"GeoIP databases validated")
+    logger.info(f"GeoIP database validated: {COUNTRY_DB_PATH}")
     return True
 
 
@@ -77,13 +71,12 @@ def is_valid_ip(ip_str):
         return False
 
 
-def lookup_ip_location(ip_str, country_reader, city_reader):
-    """Get location information for an IP address."""
+def lookup_ip_location(ip_str, country_reader):
+    """Get country information for an IP address."""
     if not is_valid_ip(ip_str):
-        return UNKNOWN_COUNTRY, None
+        return UNKNOWN_COUNTRY
 
     country = UNKNOWN_COUNTRY
-    city = None
 
     # Get country information
     try:
@@ -94,16 +87,7 @@ def lookup_ip_location(ip_str, country_reader, city_reader):
     except Exception as e:
         logger.debug(f"Error looking up country for IP {ip_str}: {e}")
 
-    # Get city information
-    try:
-        response = city_reader.city(ip_str)
-        city = response.city.name if response.city.name else None
-    except AddressNotFoundError:
-        pass
-    except Exception as e:
-        logger.debug(f"Error looking up city for IP {ip_str}: {e}")
-
-    return country, city
+    return country
 
 
 def bulk_process(limit=None, dry_run=False, force=False):
@@ -152,8 +136,8 @@ def bulk_process(limit=None, dry_run=False, force=False):
             # Force mode: process ALL records with IPs
             where_clause = "WHERE ip IS NOT NULL"
         else:
-            # Incremental mode: only process records with NULL geolocation values
-            where_clause = "WHERE ip IS NOT NULL AND (country IS NULL OR city IS NULL)"
+            # Incremental mode: only process records with NULL country values
+            where_clause = "WHERE ip IS NOT NULL AND country IS NULL"
 
         copy_query = f"""
             COPY (
@@ -187,16 +171,14 @@ def bulk_process(limit=None, dry_run=False, force=False):
         # Step 2: Process CSV file and write results to new CSV
         logger.info("Step 2: Processing CSV file with GeoIP lookups...")
 
-        # Open GeoIP readers
+        # Open GeoIP reader
         country_reader = geoip2.database.Reader(str(COUNTRY_DB_PATH))
-        city_reader = geoip2.database.Reader(str(CITY_DB_PATH))
 
         processed_file = "/tmp/ip_geolocation_processed.csv"
 
         batch_size = 10000
         processed_count = 0
         unknown_country_count = 0
-        unknown_city_count = 0
 
         with open(export_file, 'r', encoding='utf-8') as infile, \
              open(processed_file, 'w', encoding='utf-8', newline='') as outfile:
@@ -206,25 +188,22 @@ def bulk_process(limit=None, dry_run=False, force=False):
 
             # Skip header from input, write header to output
             next(reader)
-            writer.writerow(['id', 'country', 'city'])
+            writer.writerow(['id', 'country'])
 
             for i, row in enumerate(reader):
                 record_id, ip = row
 
                 # Lookup geolocation
-                country, city = lookup_ip_location(ip, country_reader, city_reader)
+                country = lookup_ip_location(ip, country_reader)
 
                 # Track unknowns
                 if country == UNKNOWN_COUNTRY:
                     unknown_country_count += 1
-                if city is None:
-                    unknown_city_count += 1
 
                 # Write processed row
                 writer.writerow([
                     record_id,
-                    country or '',
-                    city or ''
+                    country or ''
                 ])
 
                 processed_count += 1
@@ -237,13 +216,12 @@ def bulk_process(limit=None, dry_run=False, force=False):
                     remaining = estimated_total - elapsed
                     logger.info(f"Processed {processed_count}/{total_records} ({progress:.1%}) - {remaining/60:.1f} min remaining")
 
-        # Close GeoIP readers
+        # Close GeoIP reader
         country_reader.close()
-        city_reader.close()
 
         processing_time = time.time() - start_time
         logger.info(f"Processing completed in {processing_time:.1f}s ({processed_count/processing_time:.0f} records/sec)")
-        logger.info(f"Unknown: {unknown_country_count} countries, {unknown_city_count} cities")
+        logger.info(f"Unknown countries: {unknown_country_count}")
 
         if dry_run:
             logger.info("DRY RUN: Skipping database update")
@@ -272,8 +250,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
         cur.execute("""
             CREATE TEMPORARY TABLE temp_ip_geolocation (
                 id BIGINT PRIMARY KEY,
-                country TEXT,
-                city TEXT
+                country TEXT
             )
         """)
 
@@ -289,7 +266,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 'temp_ip_geolocation',
                 sep=',',
                 null='',
-                columns=['id', 'country', 'city']
+                columns=['id', 'country']
             )
 
         logger.info(f"Inserted {processed_count} records into temp table using COPY FROM")
@@ -301,9 +278,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
 
         cur.execute("""
             UPDATE metrics_page_views AS m
-            SET
-                country = COALESCE(NULLIF(t.country, ''), m.country),
-                city = COALESCE(NULLIF(t.city, ''), m.city)
+            SET country = COALESCE(NULLIF(t.country, ''), m.country)
             FROM temp_ip_geolocation AS t
             WHERE m.id = t.id
         """)
