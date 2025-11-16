@@ -586,8 +586,10 @@ class UserAgentNormalizer:
                 )
             """
 
-        query += " ORDER BY id"
-        
+        # Order by timestamp DESC to process most recent records first
+        # This ensures fresh data is normalized first for analytics
+        query += " ORDER BY timestamp DESC"
+
         if limit:
             query += f" LIMIT {limit}"
         
