@@ -9,10 +9,11 @@ This script processes user agent normalization in bulk for maximum performance:
 4. Single bulk UPDATE from temp table to live table
 
 Bot Detection:
-- Uses 711 Matomo bot patterns from resources/matomo/bots.yml
-- For bots: Sets is_bot=true, leaves browser/os/device fields NULL
+- Uses 711 Matomo bot patterns from resources/matomo/bots.yml (traditional crawlers)
+- PLUS custom patterns for programmatic clients (curl, axios, python-requests, etc.)
+- For bots: Sets is_bot=true, PRESERVES browser/os/device values (e.g., "curl", "axios")
 - For users: Sets is_bot=false, populates browser/os/device with actual values
-- Preserves actual bot information (e.g., "Googlebot") in user_agent field
+- Preserves actual bot information in both user_agent AND normalized fields for analysis
 
 Performance: ~10-100x faster than row-by-row processing
 Estimated time: 400K records in 5-15 minutes (vs 6-7 hours)
@@ -92,12 +93,52 @@ def load_matomo_bot_patterns():
 
 BOT_PATTERNS = load_matomo_bot_patterns()
 
+# Custom patterns for programmatic clients that Matomo doesn't catch
+# These are clearly automated tools/bots, not real users
+PROGRAMMATIC_CLIENT_PATTERNS = [
+    re.compile(r'\bcurl/', re.IGNORECASE),
+    re.compile(r'\bwget/', re.IGNORECASE),
+    re.compile(r'\bpython-requests/', re.IGNORECASE),
+    re.compile(r'\baxios/', re.IGNORECASE),
+    re.compile(r'\bokhttp/', re.IGNORECASE),
+    re.compile(r'\bGo-http-client/', re.IGNORECASE),
+    re.compile(r'\bJava/\d', re.IGNORECASE),
+    re.compile(r'\bDart/\d', re.IGNORECASE),
+    re.compile(r'\bnode-fetch/', re.IGNORECASE),
+    re.compile(r'\bApache-HttpClient/', re.IGNORECASE),
+    re.compile(r'\bPython-urllib/', re.IGNORECASE),
+    re.compile(r'\bPython/\d.*aiohttp/', re.IGNORECASE),
+    re.compile(r'\bAnyConnect', re.IGNORECASE),
+    re.compile(r'\bOpenVAS', re.IGNORECASE),
+    re.compile(r'\bDalvik/', re.IGNORECASE),  # Android system client, not real user
+    re.compile(r'\bScanner\b', re.IGNORECASE),
+    re.compile(r'\bScraper\b', re.IGNORECASE),
+    re.compile(r'\bEmailAutodiscovery', re.IGNORECASE),
+    re.compile(r'\bWinRM', re.IGNORECASE),
+]
+
 
 def is_bot(user_agent_string):
-    """Check if user agent is a bot."""
+    """Check if user agent is a bot using both custom programmatic client detection and Matomo patterns.
+
+    Performance optimization: Check our 19 targeted patterns first (fast!), then fall back to
+    Matomo's 711 patterns only if needed. Our patterns catch common programmatic clients
+    (curl, axios, python-requests) that Matomo misses.
+    """
     if not user_agent_string:
         return False
-    return any(pattern.search(user_agent_string) for pattern in BOT_PATTERNS)
+
+    # Check programmatic clients FIRST (19 patterns - fast!)
+    # These catch curl, axios, python-requests, etc. that Matomo misses
+    if any(pattern.search(user_agent_string) for pattern in PROGRAMMATIC_CLIENT_PATTERNS):
+        return True
+
+    # Fall back to Matomo patterns (711 patterns - comprehensive)
+    # These catch traditional crawlers like Googlebot, Bingbot, etc.
+    if any(pattern.search(user_agent_string) for pattern in BOT_PATTERNS):
+        return True
+
+    return False
 
 
 def normalize_user_agent(user_agent_string):
@@ -105,16 +146,19 @@ def normalize_user_agent(user_agent_string):
 
     Returns:
         tuple: (browser, os, device, is_bot)
-        - For bots: (None, None, None, True) - normalized fields left NULL
+        - For bots: (browser, os, device, True) - PRESERVES actual values (e.g., "curl", "axios")
         - For users: (browser, os, device, False) - populated values
         - For empty: (None, None, None, False)
+
+    Note: We preserve browser/os/device values even for bots because our detection
+    isn't perfect and the values are useful for analysis (e.g., distinguishing
+    between curl, axios, Googlebot, etc.)
     """
     if not user_agent_string:
         return None, None, None, False
 
-    # If bot detected, return NULLs for normalized fields + is_bot flag
-    if is_bot(user_agent_string):
-        return None, None, None, True
+    # Check if bot FIRST (before parsing)
+    bot_detected = is_bot(user_agent_string)
 
     try:
         parsed_ua = user_agent_parser.Parse(user_agent_string)
@@ -137,11 +181,12 @@ def normalize_user_agent(user_agent_string):
         else:
             device = 'Desktop'
 
-        return browser, os_name, device, False
+        # Return parsed values WITH bot flag (preserving actual browser/os/device info)
+        return browser, os_name, device, bot_detected
 
     except Exception as e:
         logger.error(f"Error normalizing UA: {e}")
-        return None, None, None, False
+        return None, None, None, bot_detected
 
 
 def normalize_referrer(referrer):
