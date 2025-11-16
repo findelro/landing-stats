@@ -1,0 +1,158 @@
+name: 'Setup GeoIP Databases'
+description: 'Download GeoIP databases from cache, MaxMind, or GitHub Release fallback'
+
+inputs:
+  maxmind-license-key:
+    description: 'MaxMind license key (optional - will use GitHub Release if not provided)'
+    required: false
+
+outputs:
+  source:
+    description: 'Source of databases (cache, maxmind, or release)'
+    value: ${{ steps.determine-source.outputs.source }}
+  cache-hit:
+    description: 'Whether cache was hit'
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get current date
+      id: date
+      shell: bash
+      run: |
+        echo "year=$(date +'%Y')" >> $GITHUB_OUTPUT
+        echo "month=$(date +'%m')" >> $GITHUB_OUTPUT
+        echo "timestamp=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+
+    - name: Cache GeoIP databases
+      uses: actions/cache@v4
+      id: cache
+      with:
+        path: resources/geoip
+        key: geoip-${{ steps.date.outputs.year }}-${{ steps.date.outputs.month }}
+        restore-keys: |
+          geoip-${{ steps.date.outputs.year }}-
+          geoip-
+
+    - name: Report cache status
+      shell: bash
+      run: |
+        if [ "${{ steps.cache.outputs.cache-hit }}" == "true" ]; then
+          echo "✅ CACHE HIT - Using cached GeoIP databases"
+          echo "🔑 Cache key: geoip-${{ steps.date.outputs.year }}-${{ steps.date.outputs.month }}"
+        else
+          echo "⚠️ CACHE MISS - Will download databases"
+        fi
+
+    - name: Download from MaxMind (if license key provided)
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.maxmind-license-key != ''
+      id: maxmind
+      continue-on-error: true
+      shell: bash
+      env:
+        MAXMIND_LICENSE_KEY: ${{ inputs.maxmind-license-key }}
+      run: |
+        echo "========================================="
+        echo "📥 DOWNLOADING FROM MAXMIND"
+        echo "========================================="
+
+        mkdir -p resources/geoip
+
+        # Download Country
+        if curl -fL -o resources/geoip/GeoLite2-Country.tar.gz \
+          "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"; then
+          echo "✅ Downloaded GeoLite2-Country"
+        else
+          echo "❌ Failed to download GeoLite2-Country"
+          exit 1
+        fi
+
+        # Download City
+        if curl -fL -o resources/geoip/GeoLite2-City.tar.gz \
+          "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"; then
+          echo "✅ Downloaded GeoLite2-City"
+        else
+          echo "❌ Failed to download GeoLite2-City"
+          exit 1
+        fi
+
+        # Extract
+        tar -xzf resources/geoip/GeoLite2-Country.tar.gz -C resources/geoip --strip-components=1 --wildcards '*/GeoLite2-Country.mmdb'
+        tar -xzf resources/geoip/GeoLite2-City.tar.gz -C resources/geoip --strip-components=1 --wildcards '*/GeoLite2-City.mmdb'
+        rm -f resources/geoip/*.tar.gz
+
+        echo "✅ MAXMIND DOWNLOAD SUCCESSFUL"
+        echo "maxmind_success=true" >> $GITHUB_OUTPUT
+
+    - name: Upload to GitHub Release (if MaxMind succeeded)
+      if: steps.maxmind.outputs.maxmind_success == 'true'
+      continue-on-error: true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "📤 Uploading to GitHub Release (geoip-latest)"
+
+        # Delete and recreate release
+        gh release delete geoip-latest --yes 2>/dev/null || true
+        gh release create geoip-latest \
+          --title "GeoIP Databases (Latest)" \
+          --notes "Updated: ${{ steps.date.outputs.timestamp }}. Source: MaxMind GeoLite2. Auto-updated by GitHub Actions." \
+          resources/geoip/*.mmdb
+
+        echo "✅ Uploaded to GitHub Release"
+
+    - name: Download from GitHub Release (fallback)
+      if: steps.cache.outputs.cache-hit != 'true' && steps.maxmind.outputs.maxmind_success != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "🔄 FALLBACK TO GITHUB RELEASE"
+
+        mkdir -p resources/geoip
+
+        if gh release download geoip-latest \
+          --pattern '*.mmdb' \
+          --dir resources/geoip \
+          --clobber 2>/dev/null; then
+          echo "✅ Downloaded from GitHub Release"
+        else
+          echo "❌ CRITICAL: No databases available"
+          echo "💡 Run incremental workflow with MaxMind license key first"
+          exit 1
+        fi
+
+    - name: Verify databases
+      shell: bash
+      run: |
+        echo "🔍 Verifying GeoIP databases..."
+
+        if [ ! -f "resources/geoip/GeoLite2-Country.mmdb" ]; then
+          echo "❌ GeoLite2-Country.mmdb not found"
+          exit 1
+        fi
+
+        if [ ! -f "resources/geoip/GeoLite2-City.mmdb" ]; then
+          echo "❌ GeoLite2-City.mmdb not found"
+          exit 1
+        fi
+
+        echo "✅ GeoLite2-Country.mmdb ($(du -h resources/geoip/GeoLite2-Country.mmdb | cut -f1))"
+        echo "✅ GeoLite2-City.mmdb ($(du -h resources/geoip/GeoLite2-City.mmdb | cut -f1))"
+
+    - name: Determine source
+      id: determine-source
+      shell: bash
+      run: |
+        if [ "${{ steps.cache.outputs.cache-hit }}" == "true" ]; then
+          echo "source=cache" >> $GITHUB_OUTPUT
+          echo "📊 SOURCE: GitHub Actions Cache"
+        elif [ "${{ steps.maxmind.outputs.maxmind_success }}" == "true" ]; then
+          echo "source=maxmind" >> $GITHUB_OUTPUT
+          echo "📊 SOURCE: MaxMind (Fresh Download)"
+        else
+          echo "source=release" >> $GITHUB_OUTPUT
+          echo "📊 SOURCE: GitHub Release (Fallback)"
+        fi

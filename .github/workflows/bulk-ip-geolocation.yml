@@ -21,12 +21,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get current date
-        id: date
-        run: |
-          echo "year=$(date +'%Y')" >> $GITHUB_OUTPUT
-          echo "month=$(date +'%m')" >> $GITHUB_OUTPUT
-          echo "timestamp=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+      - name: Setup GeoIP databases
+        uses: ./.github/actions/setup-geoip
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -40,43 +36,6 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('scripts/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
-      - name: Cache GeoIP databases
-        uses: actions/cache@v4
-        id: geoip-cache
-        with:
-          path: resources/geoip
-          key: geoip-${{ steps.date.outputs.year }}-${{ steps.date.outputs.month }}
-          restore-keys: |
-            geoip-${{ steps.date.outputs.year }}-
-            geoip-
-
-      - name: Download GeoIP databases from GitHub Release
-        if: steps.geoip-cache.outputs.cache-hit != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "========================================="
-          echo "📥 DOWNLOADING GEOIP DATABASES"
-          echo "========================================="
-
-          mkdir -p resources/geoip
-
-          if gh release download geoip-latest \
-            --pattern '*.mmdb' \
-            --dir resources/geoip \
-            --clobber 2>/dev/null; then
-
-            echo "✅ Downloaded from GitHub Release (geoip-latest)"
-            ls -lh resources/geoip/
-
-            RELEASE_DATE=$(gh release view geoip-latest --json publishedAt -q .publishedAt 2>/dev/null || echo "Unknown")
-            echo "📅 Release date: $RELEASE_DATE"
-          else
-            echo "⚠️ No GitHub Release found - databases must be available from incremental workflow"
-            echo "💡 Run incremental workflow first to populate GitHub Release"
-            exit 1
-          fi
 
       - name: Install dependencies
         run: |
@@ -106,35 +65,6 @@ jobs:
             exit 1
           fi
           echo "✓ Database configuration verified"
-
-      - name: Verify GeoIP databases
-        run: |
-          echo ""
-          echo "========================================="
-          echo "🔍 VERIFYING GEOIP DATABASES"
-          echo "========================================="
-
-          if [ ! -f "resources/geoip/GeoLite2-Country.mmdb" ]; then
-            echo "❌ ERROR: GeoLite2-Country.mmdb not found!"
-            exit 1
-          fi
-
-          if [ ! -f "resources/geoip/GeoLite2-City.mmdb" ]; then
-            echo "❌ ERROR: GeoLite2-City.mmdb not found!"
-            exit 1
-          fi
-
-          echo "✅ GeoLite2-Country.mmdb ($(du -h resources/geoip/GeoLite2-Country.mmdb | cut -f1))"
-          echo "✅ GeoLite2-City.mmdb ($(du -h resources/geoip/GeoLite2-City.mmdb | cut -f1))"
-          echo ""
-
-          if [ "${{ steps.geoip-cache.outputs.cache-hit }}" == "true" ]; then
-            echo "📊 SOURCE: GitHub Actions Cache"
-            echo "🔑 Cache key: geoip-${{ steps.date.outputs.year }}-${{ steps.date.outputs.month }}"
-          else
-            echo "📊 SOURCE: GitHub Release (geoip-latest)"
-          fi
-          echo "========================================="
 
       - name: Run bulk IP geolocation
         env:
