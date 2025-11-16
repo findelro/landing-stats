@@ -146,19 +146,21 @@ jobs:
           echo "========================================="
 
           # Create or update release
-          gh release create geoip-latest \
-            --title "GeoIP Databases (Latest)" \
-            --notes "**GeoLite2 Databases**
+          RELEASE_NOTES="GeoLite2 Databases (Auto-updated)
 
 Updated: ${{ steps.date.outputs.timestamp }}
 Source: MaxMind GeoLite2
 
-**Files:**
+Files:
 - GeoLite2-Country.mmdb (~6 MB)
 - GeoLite2-City.mmdb (~70 MB)
 
-**Auto-updated** by GitHub Actions workflow.
-Use as fallback when MaxMind download fails." \
+Auto-updated by GitHub Actions workflow.
+Use as fallback when MaxMind download fails."
+
+          gh release create geoip-latest \
+            --title "GeoIP Databases (Latest)" \
+            --notes "$RELEASE_NOTES" \
             resources/geoip/*.mmdb \
             --clobber || \
           gh release upload geoip-latest \
