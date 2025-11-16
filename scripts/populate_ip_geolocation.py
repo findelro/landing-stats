@@ -179,20 +179,16 @@ class GeoIPUpdater:
             if not db.fetchall():
                 logger.error(f"Table '{self.table_name}' does not exist")
                 return False
-            
+
             # Check for required columns
-            required_columns = ['id', 'ip']
-            if self.update_country:
-                required_columns.append('country')
-            if self.update_city:
-                required_columns.append('city')
-                
+            required_columns = ['id', 'ip', 'country']
+
             for column in required_columns:
                 db.execute(f"SELECT 1 FROM information_schema.columns WHERE table_name = '{self.table_name}' AND column_name = '{column}'")
                 if not db.fetchall():
                     logger.error(f"Column '{column}' does not exist in table '{self.table_name}'")
                     return False
-            
+
             return True
         except Exception as e:
             logger.error(f"Table validation error: {e}")
