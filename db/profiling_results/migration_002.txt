@@ -1,0 +1,35 @@
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  vacuuming "postgres.public.metrics_page_views"
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  launched 1 parallel vacuum worker for index vacuuming (planned: 1)
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  finished vacuuming "postgres.public.metrics_page_views": index scans: 1
+pages: 0 removed, 17399 remain, 15276 scanned (87.80% of total)
+tuples: 4658 removed, 394387 remain, 0 are dead but not yet removable
+removable cutoff: 1480183, which was 0 XIDs old when operation ended
+index scan needed: 10662 pages from table (61.28% of total) had 49441 dead item identifiers removed
+index "metrics_page_views_pkey": pages: 2118 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_page_views_user_agent_normalized": pages: 1041 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_page_views_browser_normalized": pages: 1029 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_page_views_os_normalized": pages: 941 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_page_views_device_normalized": pages: 916 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_timestamp_device_domain": pages: 2195 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_timestamp_country": pages: 1554 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_timestamp_referrer": pages: 648 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_ip": pages: 571 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+index "idx_metrics_timestamp_browser_os": pages: 2067 in total, 0 newly deleted, 0 currently deleted, 0 reusable
+avg read rate: 1.804 MB/s, avg write rate: 14.763 MB/s
+buffer usage: 44712 hits, 1872 misses, 15321 dirtied
+WAL usage: 28599 records, 12429 full page images, 81636446 bytes
+system usage: CPU: user: 0.32 s, system: 0.41 s, elapsed: 8.11 s
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  vacuuming "postgres.pg_toast.pg_toast_266071"
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  finished vacuuming "postgres.pg_toast.pg_toast_266071": index scans: 0
+pages: 0 removed, 0 remain, 0 scanned (100.00% of total)
+tuples: 0 removed, 0 remain, 0 are dead but not yet removable
+removable cutoff: 1480183, which was 0 XIDs old when operation ended
+new relfrozenxid: 1480183, which is 1468725 XIDs ahead of previous value
+index scan not needed: 0 pages from table (100.00% of total) had 0 dead item identifiers removed
+avg read rate: 0.457 MB/s, avg write rate: 0.000 MB/s
+buffer usage: 24 hits, 1 misses, 0 dirtied
+WAL usage: 1 records, 0 full page images, 188 bytes
+system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.01 s
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  analyzing "public.metrics_page_views"
+psql:db/migrations/002_vacuum_and_analyze.sql:24: INFO:  "metrics_page_views": scanned 17399 of 17399 pages, containing 403615 live rows and 0 dead rows; 30000 rows in sample, 403615 estimated total rows
+VACUUM

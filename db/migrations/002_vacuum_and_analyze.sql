@@ -1,0 +1,86 @@
+-- Migration: 002_vacuum_and_analyze
+-- Purpose: Clean up dead rows and update query planner statistics
+-- Impact: Improves query performance and reclaims disk space
+-- Estimated execution time: 1-3 minutes
+-- Disk space: May reclaim ~10-20 MB from dead row cleanup
+-- Prerequisites: Migration 001 should be completed first
+-- Note: This migration should be run AFTER migration 001 to optimize new indexes
+
+-- ===========================================================================
+-- CONTEXT: Why VACUUM and ANALYZE?
+-- ===========================================================================
+-- Current state: 53,119 dead rows (13% of table) causing bloat
+-- Dead rows: Old row versions from UPDATEs/DELETEs not yet reclaimed
+-- Impact: Slower queries, wasted disk space, suboptimal query plans
+-- Solution: VACUUM reclaims space, ANALYZE updates statistics
+
+-- ===========================================================================
+-- VACUUM: Reclaim dead row space
+-- ===========================================================================
+-- VACUUM ANALYZE combines both operations for efficiency
+-- Note: This may take 1-3 minutes but won't block reads/writes
+-- For production during business hours, consider VACUUM (VERBOSE, ANALYZE)
+
+VACUUM (VERBOSE, ANALYZE) metrics_page_views;
+
+-- ===========================================================================
+-- What VACUUM ANALYZE does:
+-- ===========================================================================
+-- 1. VACUUM:
+--    - Reclaims storage from dead rows (53k dead rows in this table)
+--    - Makes space available for new rows
+--    - Updates free space map (FSM)
+--    - Does NOT shrink table file size (use VACUUM FULL for that, but it locks)
+--
+-- 2. ANALYZE:
+--    - Collects statistics about data distribution
+--    - Updates pg_stats for query planner
+--    - Samples rows to estimate selectivity
+--    - Helps PostgreSQL choose optimal query plans for new indexes
+--
+-- 3. VERBOSE:
+--    - Outputs detailed progress information
+--    - Helps monitor long-running vacuum operations
+--    - Shows pages processed, dead tuples removed, etc.
+
+-- ===========================================================================
+-- Expected output (example):
+-- ===========================================================================
+-- INFO:  vacuuming "public.metrics_page_views"
+-- INFO:  scanned index "idx_metrics_timestamp_device_domain" to remove 53119 row versions
+-- INFO:  table "metrics_page_views": removed 53119 dead row versions in 1234 pages
+-- INFO:  analyzing "public.metrics_page_views"
+-- INFO:  "metrics_page_views": scanned 17000 of 17000 pages, containing 403599 live rows
+-- VACUUM
+
+-- ===========================================================================
+-- Verify vacuum completed successfully
+-- ===========================================================================
+-- Check dead rows after vacuum (should be near 0):
+-- SELECT
+--   schemaname,
+--   relname,
+--   n_live_tup as live_rows,
+--   n_dead_tup as dead_rows,
+--   last_vacuum,
+--   last_autovacuum,
+--   last_analyze
+-- FROM pg_stat_user_tables
+-- WHERE relname = 'metrics_page_views';
+
+-- ===========================================================================
+-- Future maintenance notes:
+-- ===========================================================================
+-- PostgreSQL autovacuum should handle this automatically going forward.
+-- Manual vacuum recommended when:
+-- - Dead row percentage > 10%
+-- - After bulk updates/deletes
+-- - After adding new indexes (like we just did)
+-- - Query performance degrades unexpectedly
+--
+-- Monitor with:
+-- SELECT relname, n_dead_tup, n_live_tup,
+--        round(n_dead_tup::numeric / NULLIF(n_live_tup, 0) * 100, 2) as dead_pct
+-- FROM pg_stat_user_tables
+-- WHERE schemaname = 'public'
+-- ORDER BY n_dead_tup DESC;

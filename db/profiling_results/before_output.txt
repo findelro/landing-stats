@@ -1,0 +1,174 @@
+=========================================
+PERFORMANCE BASELINE - BEFORE MIGRATION
+=========================================
+
+1. Table and Index Sizes
+------------------------
+ total_size | table_size | indexes_size | total_rows 
+------------+------------+--------------+------------
+ 183 MB     | 136 MB     | 47 MB        |     403612
+(1 row)
+
+
+2. Existing Indexes
+-------------------
+psql:db/migrations/001_add_performance_indexes_perf_before.sql:38: ERROR:  column "indexname" does not exist
+LINE 3:   indexname,
+          ^
+HINT:  Perhaps you meant to reference the column "pg_stat_user_indexes.indexrelname".
+
+3. Table Statistics
+-------------------
+ live_rows | dead_rows | dead_row_pct | last_vacuum |        last_autovacuum        | last_analyze |       last_autoanalyze        
+-----------+-----------+--------------+-------------+-------------------------------+--------------+-------------------------------
+    403612 |     53119 |        13.16 |             | 2025-11-15 19:25:53.932509+00 |              | 2025-11-15 19:48:47.789213+00
+(1 row)
+
+
+4. Query Performance Test #1: Domain Statistics
+------------------------------------------------
+Query: Date range + bot filtering + domain grouping
+
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=24723.29..24723.42 rows=50 width=28) (actual time=1387.872..1397.399 rows=0 loops=1)
+   Buffers: shared hit=17439
+   ->  Sort  (cost=24723.29..24724.86 rows=626 width=28) (actual time=1387.870..1397.397 rows=0 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=17439
+         ->  GroupAggregate  (cost=24406.41..24702.50 rows=626 width=28) (actual time=1387.860..1397.386 rows=0 loops=1)
+               Group Key: domain_normalized
+               Buffers: shared hit=17436
+               ->  Gather Merge  (cost=24406.41..24678.34 rows=2386 width=26) (actual time=1387.858..1397.383 rows=0 loops=1)
+                     Workers Planned: 1
+                     Workers Launched: 1
+                     Buffers: shared hit=17436
+                     ->  Sort  (cost=23406.40..23409.91 rows=1404 width=26) (actual time=1348.493..1348.493 rows=0 loops=2)
+                           Sort Key: domain_normalized
+                           Sort Method: quicksort  Memory: 25kB
+                           Buffers: shared hit=17436
+                           Worker 0:  Sort Method: quicksort  Memory: 25kB
+                           ->  Parallel Seq Scan on metrics_page_views  (cost=0.00..23333.00 rows=1404 width=26) (actual time=1348.448..1348.448 rows=0 loops=2)
+                                 Filter: ((device_normalized <> 'Bot'::text) AND ("timestamp" <= now()) AND ("timestamp" >= (now() - '7 days'::interval)))
+                                 Rows Removed by Filter: 201806
+                                 Buffers: shared hit=17399
+ Planning:
+   Buffers: shared hit=78
+ Planning Time: 13.223 ms
+ Execution Time: 1397.492 ms
+(26 rows)
+
+
+Look for: Seq Scan (bad), execution time
+
+5. Query Performance Test #2: Country Statistics
+-------------------------------------------------
+Query: Date range + country grouping
+
+                                                                          QUERY PLAN                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=24327.41..24327.53 rows=50 width=19) (actual time=92.353..98.082 rows=50 loops=1)
+   Buffers: shared hit=17436
+   ->  Sort  (cost=24327.41..24327.74 rows=134 width=19) (actual time=92.342..98.066 rows=50 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 32kB
+         Buffers: shared hit=17436
+         ->  GroupAggregate  (cost=23863.06..24322.96 rows=134 width=19) (actual time=85.848..98.012 rows=93 loops=1)
+               Group Key: country
+               Buffers: shared hit=17436
+               ->  Gather Merge  (cost=23863.06..24293.30 rows=3775 width=17) (actual time=85.821..92.521 rows=4018 loops=1)
+                     Workers Planned: 1
+                     Workers Launched: 1
+                     Buffers: shared hit=17436
+                     ->  Sort  (cost=22863.05..22868.61 rows=2221 width=17) (actual time=83.139..83.312 rows=2009 loops=2)
+                           Sort Key: country
+                           Sort Method: quicksort  Memory: 232kB
+                           Buffers: shared hit=17436
+                           Worker 0:  Sort Method: quicksort  Memory: 158kB
+                           ->  Parallel Seq Scan on metrics_page_views  (cost=0.00..22739.60 rows=2221 width=17) (actual time=4.533..81.219 rows=2009 loops=2)
+                                 Filter: ((country IS NOT NULL) AND ("timestamp" <= now()) AND ("timestamp" >= (now() - '7 days'::interval)))
+                                 Rows Removed by Filter: 199797
+                                 Buffers: shared hit=17399
+ Planning:
+   Buffers: shared hit=3
+ Planning Time: 0.152 ms
+ Execution Time: 98.147 ms
+(26 rows)
+
+
+Look for: Seq Scan (bad), execution time
+
+6. Query Performance Test #3: Referrer Statistics
+--------------------------------------------------
+Query: Date range + referrer grouping
+
+                                                                         QUERY PLAN                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=23951.82..23951.94 rows=50 width=28) (actual time=65.163..79.803 rows=0 loops=1)
+   Buffers: shared hit=17436
+   ->  Sort  (cost=23951.82..23953.02 rows=480 width=28) (actual time=65.161..79.801 rows=0 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=17436
+         ->  GroupAggregate  (cost=23775.59..23935.87 rows=480 width=28) (actual time=65.158..79.797 rows=0 loops=1)
+               Group Key: referrer_normalized
+               Buffers: shared hit=17436
+               ->  Gather Merge  (cost=23775.59..23921.47 rows=1280 width=26) (actual time=65.157..79.795 rows=0 loops=1)
+                     Workers Planned: 1
+                     Workers Launched: 1
+                     Buffers: shared hit=17436
+                     ->  Sort  (cost=22775.58..22777.46 rows=753 width=26) (actual time=62.497..62.498 rows=0 loops=2)
+                           Sort Key: referrer_normalized
+                           Sort Method: quicksort  Memory: 25kB
+                           Buffers: shared hit=17436
+                           Worker 0:  Sort Method: quicksort  Memory: 25kB
+                           ->  Parallel Seq Scan on metrics_page_views  (cost=0.00..22739.60 rows=753 width=26) (actual time=62.457..62.457 rows=0 loops=2)
+                                 Filter: ((referrer_normalized IS NOT NULL) AND ("timestamp" <= now()) AND ("timestamp" >= (now() - '7 days'::interval)))
+                                 Rows Removed by Filter: 201806
+                                 Buffers: shared hit=17399
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.176 ms
+ Execution Time: 79.859 ms
+(26 rows)
+
+
+Look for: Seq Scan (bad), execution time
+
+7. Cache Hit Ratio
+------------------
+Target: >99% (higher is better)
+
+     table_name     | heap_reads | heap_hits | cache_hit_ratio_pct 
+--------------------+------------+-----------+---------------------
+ metrics_page_views |      18497 |  49027429 |               99.96
+(1 row)
+
+
+8. Performance Summary
+----------------------
+       query_type        | rows_scanned | estimated_scan_size 
+-------------------------+--------------+---------------------
+ Domain Stats (7 days)   |            0 | 0 bytes
+ Country Stats (7 days)  |         4018 | 392 kB
+ Referrer Stats (7 days) |            0 | 0 bytes
+(3 rows)
+
+
+=========================================
+BASELINE METRICS CAPTURED
+=========================================
+
+Expected issues:
+  - Sequential (Seq Scan) table scans
+  - Execution time: 5,000-10,000 ms
+  - High buffer reads
+  - Rows scanned >> Rows returned
+
+Next steps:
+  1. Run: 001_add_performance_indexes.sql
+  2. Run: 002_vacuum_and_analyze.sql
+  3. Run: 001_add_performance_indexes_perf_after.sql
+  4. Compare results!
+

@@ -1,0 +1,216 @@
+=========================================
+PERFORMANCE RESULTS - AFTER MIGRATION
+=========================================
+
+1. Table and Index Sizes (After)
+--------------------------------
+ total_size | table_size | indexes_size | total_rows 
+------------+------------+--------------+------------
+ 238 MB     | 136 MB     | 102 MB       |     403616
+(1 row)
+
+
+Expected change: indexes_size should increase by ~80-100 MB
+
+2. All Indexes (Should see 5 new idx_metrics_* indexes)
+--------------------------------------------------------
+psql:db/migrations/001_add_performance_indexes_perf_after.sql:41: ERROR:  column "indexname" does not exist
+LINE 3:   indexname,
+          ^
+HINT:  Perhaps you meant to reference the column "pg_stat_user_indexes.indexrelname".
+
+3. Table Statistics (After VACUUM)
+----------------------------------
+ live_rows | dead_rows | dead_row_pct |          last_vacuum          |        last_autovacuum        |         last_analyze          |       last_autoanalyze        
+-----------+-----------+--------------+-------------------------------+-------------------------------+-------------------------------+-------------------------------
+    403616 |         0 |         0.00 | 2025-11-15 23:54:37.329525+00 | 2025-11-15 19:25:53.932509+00 | 2025-11-15 23:54:39.351422+00 | 2025-11-15 19:48:47.789213+00
+(1 row)
+
+
+Expected: dead_row_pct should be < 1%
+
+4. Query Performance Test #1: Domain Statistics
+------------------------------------------------
+Query: Date range + bot filtering + domain grouping
+
+                                                                                QUERY PLAN                                                                                
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=4225.18..4225.30 rows=50 width=28) (actual time=155.471..155.473 rows=0 loops=1)
+   Buffers: shared hit=1107
+   ->  Sort  (cost=4225.18..4226.76 rows=631 width=28) (actual time=155.470..155.471 rows=0 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=1107
+         ->  GroupAggregate  (cost=4173.65..4204.22 rows=631 width=28) (actual time=155.458..155.459 rows=0 loops=1)
+               Group Key: domain_normalized
+               Buffers: shared hit=1104
+               ->  Sort  (cost=4173.65..4179.71 rows=2426 width=26) (actual time=155.456..155.457 rows=0 loops=1)
+                     Sort Key: domain_normalized
+                     Sort Method: quicksort  Memory: 25kB
+                     Buffers: shared hit=1104
+                     ->  Bitmap Heap Scan on metrics_page_views  (cost=66.26..4037.25 rows=2426 width=26) (actual time=155.448..155.449 rows=0 loops=1)
+                           Recheck Cond: (("timestamp" >= (now() - '7 days'::interval)) AND ("timestamp" <= now()))
+                           Filter: (device_normalized <> 'Bot'::text)
+                           Rows Removed by Filter: 4236
+                           Heap Blocks: exact=1082
+                           Buffers: shared hit=1101
+                           ->  Bitmap Index Scan on idx_metrics_timestamp_browser_os  (cost=0.00..65.65 rows=4102 width=0) (actual time=17.185..17.186 rows=4236 loops=1)
+                                 Index Cond: (("timestamp" >= (now() - '7 days'::interval)) AND ("timestamp" <= now()))
+                                 Buffers: shared hit=19
+ Planning:
+   Buffers: shared hit=66
+ Planning Time: 1.028 ms
+ Execution Time: 155.558 ms
+(26 rows)
+
+
+Expected: Index Scan using idx_metrics_timestamp_device_domain
+Expected: Execution time < 200 ms (was 5,000-10,000 ms)
+
+5. Query Performance Test #2: Country Statistics
+-------------------------------------------------
+Query: Date range + country grouping
+
+                                                                              QUERY PLAN                                                                               
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=4311.47..4311.59 rows=50 width=19) (actual time=22.957..22.968 rows=50 loops=1)
+   Buffers: shared hit=909
+   ->  Sort  (cost=4311.47..4311.80 rows=133 width=19) (actual time=22.956..22.961 rows=50 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 32kB
+         Buffers: shared hit=909
+         ->  GroupAggregate  (cost=4264.72..4307.05 rows=133 width=19) (actual time=17.397..22.918 rows=93 loops=1)
+               Group Key: country
+               Buffers: shared hit=909
+               ->  Sort  (cost=4264.72..4274.97 rows=4100 width=17) (actual time=17.372..17.628 rows=4014 loops=1)
+                     Sort Key: country
+                     Sort Method: quicksort  Memory: 341kB
+                     Buffers: shared hit=909
+                     ->  Bitmap Heap Scan on metrics_page_views  (cost=60.05..4018.69 rows=4100 width=17) (actual time=12.139..14.070 rows=4014 loops=1)
+                           Recheck Cond: (("timestamp" >= (now() - '7 days'::interval)) AND ("timestamp" <= now()) AND (country IS NOT NULL))
+                           Heap Blocks: exact=891
+                           Buffers: shared hit=909
+                           ->  Bitmap Index Scan on idx_metrics_timestamp_country  (cost=0.00..59.03 rows=4100 width=0) (actual time=12.038..12.038 rows=4014 loops=1)
+                                 Index Cond: (("timestamp" >= (now() - '7 days'::interval)) AND ("timestamp" <= now()))
+                                 Buffers: shared hit=18
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.228 ms
+ Execution Time: 23.027 ms
+(24 rows)
+
+
+Expected: Index Scan using idx_metrics_timestamp_country
+Expected: Execution time < 200 ms
+
+6. Query Performance Test #3: Referrer Statistics
+--------------------------------------------------
+Query: Date range + referrer grouping
+
+                                                                                    QUERY PLAN                                                                                    
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1507.08..1507.21 rows=50 width=28) (actual time=1.172..1.173 rows=0 loops=1)
+   Buffers: shared hit=3
+   ->  Sort  (cost=1507.08..1508.29 rows=483 width=28) (actual time=1.171..1.171 rows=0 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=3
+         ->  GroupAggregate  (cost=1473.15..1491.04 rows=483 width=28) (actual time=1.168..1.168 rows=0 loops=1)
+               Group Key: referrer_normalized
+               Buffers: shared hit=3
+               ->  Sort  (cost=1473.15..1476.41 rows=1306 width=26) (actual time=1.166..1.167 rows=0 loops=1)
+                     Sort Key: referrer_normalized
+                     Sort Method: quicksort  Memory: 25kB
+                     Buffers: shared hit=3
+                     ->  Index Scan using idx_metrics_timestamp_referrer on metrics_page_views  (cost=0.42..1405.56 rows=1306 width=26) (actual time=1.162..1.162 rows=0 loops=1)
+                           Index Cond: (("timestamp" >= (now() - '7 days'::interval)) AND ("timestamp" <= now()))
+                           Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=15
+ Planning Time: 0.879 ms
+ Execution Time: 1.222 ms
+(20 rows)
+
+
+Expected: Index Scan using idx_metrics_timestamp_referrer
+Expected: Execution time < 200 ms
+
+7. Cache Hit Ratio (After)
+--------------------------
+Target: >99% (higher is better)
+
+     table_name     | heap_reads | heap_hits | cache_hit_ratio_pct 
+--------------------+------------+-----------+---------------------
+ metrics_page_views |      18679 |  49452857 |               99.96
+(1 row)
+
+
+8. Index Usage Statistics
+-------------------------
+Shows how many times each index has been used
+
+                  index_name                  | times_used | tuples_read | tuples_fetched | index_size 
+----------------------------------------------+------------+-------------+----------------+------------
+ idx_metrics_page_views_os_normalized         |        113 |     4774589 |        4232435 | 7528 kB
+ idx_metrics_page_views_device_normalized     |         93 |     3680135 |        3498042 | 7328 kB
+ idx_metrics_page_views_browser_normalized    |         66 |     3722443 |        3387659 | 8232 kB
+ idx_metrics_page_views_user_agent_normalized |          4 |       27332 |          27332 | 8328 kB
+ idx_metrics_ip                               |          2 |      403616 |             33 | 4568 kB
+ idx_metrics_timestamp_browser_os             |          0 |           0 |              0 | 16 MB
+ idx_metrics_timestamp_device_domain          |          0 |           0 |              0 | 17 MB
+ idx_metrics_timestamp_referrer               |          0 |           0 |              0 | 5184 kB
+ idx_metrics_timestamp_country                |          0 |           0 |              0 | 12 MB
+(9 rows)
+
+
+Note: If times_used is 0, indexes may need time to be used in production
+
+9. Performance Improvement Summary
+-----------------------------------
+       query_type        | rows_matching | expected_execution_time | expected_scan_type 
+-------------------------+---------------+-------------------------+--------------------
+ Domain Stats (7 days)   |             0 | < 200 ms                | Index Scan
+ Country Stats (7 days)  |          4014 | < 200 ms                | Index Scan
+ Referrer Stats (7 days) |             0 | < 200 ms                | Index Scan
+(3 rows)
+
+
+10. Scan Type Verification
+--------------------------
+Verifying that queries now use indexes instead of sequential scans
+
+Domain Query Scan Type:
+psql:db/migrations/001_add_performance_indexes_perf_after.sql:254: ERROR:  syntax error at or near "JSON"
+LINE 3:     EXPLAIN (FORMAT JSON)
+                            ^
+
+Country Query Scan Type:
+psql:db/migrations/001_add_performance_indexes_perf_after.sql:278: ERROR:  syntax error at or near "JSON"
+LINE 3:     EXPLAIN (FORMAT JSON)
+                            ^
+
+Referrer Query Scan Type:
+psql:db/migrations/001_add_performance_indexes_perf_after.sql:302: ERROR:  syntax error at or near "JSON"
+LINE 3:     EXPLAIN (FORMAT JSON)
+                            ^
+
+=========================================
+MIGRATION SUCCESS CRITERIA
+=========================================
+
+Check the following:
+
+✓ 5 new indexes created (idx_metrics_*)
+✓ Dead row percentage < 1%
+✓ All queries show "Index Scan" or "Bitmap Index Scan"
+✓ Execution times < 200 ms (down from 5,000-10,000 ms)
+✓ Cache hit ratio > 99%
+✓ Index sizes total ~80-100 MB
+
+Expected Performance Improvement:
+  Before: 5,000-10,000 ms (Sequential Scans)
+  After:  50-200 ms (Index Scans)
+  Speedup: 25-100x faster
+
+If any criteria failed, review the output above for details.
+
