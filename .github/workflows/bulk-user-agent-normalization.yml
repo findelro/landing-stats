@@ -1,6 +1,11 @@
 name: Bulk User Agent Normalization
 
 on:
+  # Automatic incremental processing every 2 hours
+  schedule:
+    - cron: '0 */2 * * *'
+
+  # Manual trigger with option for full refresh
   workflow_dispatch:
     inputs:
       force_refresh:
@@ -87,8 +92,9 @@ jobs:
           # Build command
           CMD="python scripts/bulk_normalize_user_agents.py"
 
-          # Add force refresh if specified
-          if [ "${{ inputs.force_refresh }}" == "Yes" ]; then
+          # Add force refresh if specified (defaults to 'No' for scheduled runs)
+          FORCE_REFRESH="${{ inputs.force_refresh || 'No' }}"
+          if [ "$FORCE_REFRESH" == "Yes" ]; then
             echo "🔄 Scope: FULL REFRESH (reprocessing ALL records, including already normalized)"
             CMD="$CMD --force"
           else
