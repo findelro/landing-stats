@@ -11,9 +11,10 @@ This script processes user agent normalization in bulk for maximum performance:
 Bot Detection:
 - Uses 711 Matomo bot patterns from resources/matomo/bots.yml (traditional crawlers)
 - PLUS custom patterns for programmatic clients (curl, axios, python-requests, etc.)
-- For bots: Sets is_bot=true, PRESERVES browser/os/device values (e.g., "curl", "axios")
+- Custom patterns checked FIRST (19 patterns - fast), then Matomo (711 patterns)
+- For bots: Sets is_bot=true, browser/os/device set to NULL (don't store bot lies)
 - For users: Sets is_bot=false, populates browser/os/device with actual values
-- Preserves actual bot information in both user_agent AND normalized fields for analysis
+- Original user_agent string always preserved for reference
 
 Performance: ~10-100x faster than row-by-row processing
 Estimated time: 400K records in 5-15 minutes (vs 6-7 hours)
@@ -146,19 +147,25 @@ def normalize_user_agent(user_agent_string):
 
     Returns:
         tuple: (browser, os, device, is_bot)
-        - For bots: (browser, os, device, True) - PRESERVES actual values (e.g., "curl", "axios")
+        - For bots: (None, None, None, True) - browser/os/device set to NULL (don't store bot lies)
         - For users: (browser, os, device, False) - populated values
         - For empty: (None, None, None, False)
 
-    Note: We preserve browser/os/device values even for bots because our detection
-    isn't perfect and the values are useful for analysis (e.g., distinguishing
-    between curl, axios, Googlebot, etc.)
+    Note: We don't store browser/os/device for bots because:
+    - Bots can lie about their browser/OS
+    - We filter out bots anyway (include_bots=false by default)
+    - Storing 3 TEXT fields with potentially fake data is wasteful
+    - The is_bot flag is sufficient to identify bots
     """
     if not user_agent_string:
         return None, None, None, False
 
     # Check if bot FIRST (before parsing)
     bot_detected = is_bot(user_agent_string)
+
+    # For bots, return NULLs immediately (don't waste time parsing)
+    if bot_detected:
+        return None, None, None, True
 
     try:
         parsed_ua = user_agent_parser.Parse(user_agent_string)
@@ -181,12 +188,12 @@ def normalize_user_agent(user_agent_string):
         else:
             device = 'Desktop'
 
-        # Return parsed values WITH bot flag (preserving actual browser/os/device info)
-        return browser, os_name, device, bot_detected
+        # Return parsed values for real users
+        return browser, os_name, device, False
 
     except Exception as e:
         logger.error(f"Error normalizing UA: {e}")
-        return None, None, None, bot_detected
+        return None, None, None, False
 
 
 def normalize_referrer(referrer):
@@ -423,9 +430,9 @@ def bulk_process(limit=None, dry_run=False, force=False):
         cur.execute("""
             UPDATE metrics_page_views AS m
             SET
-                browser_normalized = COALESCE(t.browser_normalized, m.browser_normalized),
-                os_normalized = COALESCE(t.os_normalized, m.os_normalized),
-                device_normalized = COALESCE(t.device_normalized, m.device_normalized),
+                browser_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.browser_normalized, m.browser_normalized) END,
+                os_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.os_normalized, m.os_normalized) END,
+                device_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.device_normalized, m.device_normalized) END,
                 referrer_normalized = COALESCE(t.referrer_normalized, m.referrer_normalized),
                 domain_normalized = COALESCE(t.domain_normalized, m.domain_normalized),
                 is_bot = COALESCE(t.is_bot, m.is_bot)
