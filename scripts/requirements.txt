@@ -13,3 +13,4 @@ python-dotenv>=1.0.0
 loguru==0.7.3
 ua-parser>=0.18.0
 tld>=0.13
+PyYAML>=6.0  # For parsing Matomo's bot detection patterns

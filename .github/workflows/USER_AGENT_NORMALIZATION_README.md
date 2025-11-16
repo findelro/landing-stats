@@ -61,10 +61,19 @@ These should already exist from earlier migrations:
 
 ### Trigger Options
 
-**Manual Trigger (Current):**
+**Manual Trigger with Options:**
 ```yaml
 on:
-  workflow_dispatch:  # Manual triggering only
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Force full refresh?'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - 'No'   # Incremental: only new records
+          - 'Yes'  # Full refresh: reprocess all records
 ```
 
 **Automated Schedule (After Testing):**
@@ -83,15 +92,17 @@ The user agent normalization runs **less frequently than IP geolocation** (2 hou
 - Reduces GitHub Actions minutes usage
 - Most new records get normalized within 4-8 hours (acceptable delay)
 
-## Bot Signatures
+## Bot Detection - Matomo Integration
 
-The workflow verifies that the bot signatures configuration file exists:
+The workflow uses **Matomo's actively maintained bot detection patterns** instead of a custom list:
 
-### Configuration File
-`scripts/populate_normalized_stats.json`
+### Bot Patterns File
+`resources/matomo/bots.yml`
 
-### Current Signatures
-147 bot signatures including:
+**Source:** https://github.com/matomo-org/device-detector/blob/master/regexes/bots.yml
+
+### Pattern Count
+**711 bot detection patterns** (vs 147 in previous custom list) including:
 - **Monitoring Tools**: Datadog, New Relic, Pingdom, UptimeRobot, Nagios, Prometheus, Grafana
 - **HTTP Clients**: curl, wget, axios, okhttp, python-requests, go-http-client
 - **Automation Tools**: Selenium, Playwright, Puppeteer, PhantomJS
@@ -102,7 +113,17 @@ The workflow verifies that the bot signatures configuration file exists:
 - **CDN/Proxies**: Cloudflare, CloudFront, Akamai, Fastly
 - **Security Scanners**: Wappalyzer, Expanse, OpenVAS, nmap-like tools
 
-Case-insensitive matching is used for all signatures.
+**Bot Pattern Format:**
+- Regex-based matching (more accurate than simple string matching)
+- Case-insensitive by default
+- Organized by category (Search bot, Crawler, Social Media Agent, Site Monitor, etc.)
+- Actively maintained by Matomo team
+
+**Advantages over custom list:**
+- ✅ 4.8x more comprehensive (711 vs 147 patterns)
+- ✅ Actively maintained and updated
+- ✅ Industry-standard patterns used by Matomo analytics
+- ✅ Regex matching is more precise than substring matching
 
 ## Workflow Steps
 
@@ -375,30 +396,76 @@ git checkout scripts/populate_normalized_stats.json
    - **Mitigation**: GitHub Actions has built-in retry option (can be enabled if needed)
    - **Current approach**: Manual re-trigger if workflow fails
 
+## Full Refresh Mode
+
+### When to Use Full Refresh
+
+**Use Full Refresh (`--force` flag) when:**
+1. 🆕 **Upgrading bot detection** - Switched from 147 custom patterns to 711 Matomo patterns
+2. 🐛 **Fixing normalization bugs** - Corrected browser/OS/device detection logic
+3. 🔄 **Improving accuracy** - Better regex patterns or edge case handling
+4. 📊 **Data quality audit** - Reprocessing all records for consistency
+
+### Workflow Input Dropdown
+
+When manually triggering the workflow, you'll see:
+
+```
+Force full refresh?  [dropdown ▼]
+├─ No  ← Default (incremental: only new/unprocessed records)
+└─ Yes ← Full refresh (reprocess ALL records)
+```
+
+**Incremental Mode (No):**
+- Processes only records with NULL normalized values
+- Faster execution
+- Lower resource usage
+- Default for automated runs
+
+**Full Refresh Mode (Yes):**
+- Reprocesses ALL records (even already normalized)
+- Takes longer (processes entire table)
+- Higher resource usage
+- **Recommended for first run after upgrading to Matomo patterns!**
+
+### Usage Example
+
+```bash
+# Incremental (default)
+python scripts/populate_normalized_stats.py
+
+# Full refresh
+python scripts/populate_normalized_stats.py --force
+```
+
+---
+
 ## Next Steps
 
-1. ✅ Migration files created (`003_add_normalization_columns.sql`, `.down.sql`)
-2. ✅ Workflow file created and reviewed (`.github/workflows/process-user-agent-normalization.yml`)
-3. ⏭️ Run migration 003 to add normalization columns
-4. ⏭️ Test workflow manually (trigger from GitHub Actions UI)
-5. ⏭️ Verify normalized data appears in database
-6. ⏭️ Verify frontend displays normalized data correctly
-7. ⏭️ Enable cron schedule (uncomment schedule section)
-8. ⏭️ Monitor for first few automated runs
+1. ✅ Migration files created (`003_add_normalization_columns.sql`)
+2. ✅ Workflow file created with full refresh dropdown
+3. ✅ Matomo bot patterns integrated (711 patterns)
+4. ⏭️ Run migration 003 to add normalization columns
+5. ⏭️ Test workflow manually with **Full Refresh = Yes** (to apply new bot patterns)
+6. ⏭️ Verify normalized data appears in database
+7. ⏭️ Verify frontend displays normalized data correctly
+8. ⏭️ Enable cron schedule (uncomment schedule section)
+9. ⏭️ Monitor for first few automated runs
 
 ## Resources
 
 - **Workflow file**: `.github/workflows/process-user-agent-normalization.yml`
 - **Script**: `scripts/populate_normalized_stats.py`
-- **Bot signatures**: `scripts/populate_normalized_stats.json`
+- **Bot patterns**: `resources/matomo/bots.yml` (711 Matomo patterns)
+- **Bot patterns source**: https://github.com/matomo-org/device-detector/blob/master/regexes/bots.yml
 - **Migration**: `db/migrations/003_add_normalization_columns.sql`
-- **Rollback**: `db/migrations/003_add_normalization_columns.down.sql`
 - **Logs**: Saved as GitHub Actions artifacts (7-day retention)
 - **ua-parser library**: https://github.com/ua-parser/uap-python
 - **tld library**: https://pypi.org/project/tld/
+- **PyYAML library**: https://pyyaml.org/
 
 ---
 
 **Created**: 2025-11-16
 **Last Updated**: 2025-11-16
-**Status**: Ready for testing
+**Status**: Ready for testing with Matomo bot patterns

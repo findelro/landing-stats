@@ -7,7 +7,16 @@ on:
   #   - cron: '0 */4 * * *'
 
   workflow_dispatch:
-    # Manual triggering only (for testing and on-demand processing)
+    # Manual triggering with options
+    inputs:
+      full_refresh:
+        description: 'Force full refresh?'
+        required: true
+        default: 'No'
+        type: choice
+        options:
+          - 'No'
+          - 'Yes'
 
 jobs:
   process-user-agent-normalization:
@@ -50,18 +59,18 @@ jobs:
           echo "  User: $SUPABASE_PSQL_DB_USER"
           echo "  Password: [hidden]"
 
-      - name: Verify bot signatures config exists
+      - name: Verify Matomo bot patterns exist
         run: |
-          if [ ! -f "scripts/populate_normalized_stats.json" ]; then
-            echo "ERROR: Bot signatures config file not found!"
-            echo "Expected location: scripts/populate_normalized_stats.json"
+          if [ ! -f "resources/matomo/bots.yml" ]; then
+            echo "ERROR: Matomo bots.yml file not found!"
+            echo "Expected location: resources/matomo/bots.yml"
             exit 1
           fi
-          echo "✓ Bot signatures config found"
+          echo "✓ Matomo bot patterns found"
 
-          # Show signature count
-          SIGNATURE_COUNT=$(cat scripts/populate_normalized_stats.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['bot_signatures']))")
-          echo "Loaded $SIGNATURE_COUNT bot signatures"
+          # Show pattern count
+          PATTERN_COUNT=$(grep -c "^- regex:" resources/matomo/bots.yml)
+          echo "Loaded $PATTERN_COUNT bot detection patterns from Matomo"
 
       - name: Run user agent normalization processing
         env:
@@ -71,7 +80,13 @@ jobs:
           SUPABASE_PSQL_DB_PASSWORD: ${{ secrets.SUPABASE_PSQL_DB_PASSWORD }}
         run: |
           echo "Starting user agent normalization processing..."
-          python scripts/populate_normalized_stats.py
+          if [ "${{ inputs.full_refresh }}" == "Yes" ]; then
+            echo "⚡ Full refresh mode: reprocessing ALL records"
+            python scripts/populate_normalized_stats.py --force
+          else
+            echo "📊 Incremental mode: processing only new records"
+            python scripts/populate_normalized_stats.py
+          fi
 
       - name: Upload logs
         if: always()

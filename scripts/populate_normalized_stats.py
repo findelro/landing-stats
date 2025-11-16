@@ -4,7 +4,7 @@ import sys
 import time
 import argparse
 import re
-import json
+import yaml
 from loguru import logger
 import psycopg2
 from dotenv import load_dotenv
@@ -19,32 +19,66 @@ load_dotenv()
 # Configure logger
 logger.add("logs/populate_normalized_stats.log", rotation="10 MB", retention="1 month")
 
-def load_bot_signatures():
-    """Load bot signatures from configuration file or environment variable."""
-    # Look for config file in the same directory as this script
-    script_dir = Path(__file__).parent
-    config_path = script_dir / "populate_normalized_stats.json"
-    
-    try:
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-                signatures = config.get('bot_signatures', [])
-                logger.info(f"Loaded {len(signatures)} bot signatures from config file: {config_path}")
-                return signatures
-        else:
-            logger.warning(f"Bot signatures config file not found at {config_path}, using environment variable")
-    except Exception as e:
-        logger.error(f"Error loading bot signatures config: {e}")
-    
-    # Fallback to environment variable
-    default_signatures = 'Dataprovider.com,Wappalyzer,bot,crawler,spider,scrape,scrapy,okhttp,curl,wget,dart,Expanse,Mozilla/5.0 (compatible)'
-    signatures = os.getenv('BOT_SIGNATURES', default_signatures).split(',')
-    logger.info(f"Using {len(signatures)} bot signatures from environment variable")
-    return signatures
+def load_matomo_bot_patterns():
+    """Load bot detection patterns from Matomo's bots.yml file.
 
-# Load bot signatures
-BOT_SIGNATURES = load_bot_signatures()
+    Returns:
+        list: List of compiled regex patterns for bot detection
+    """
+    # Try multiple possible locations for the bots.yml file
+    script_dir = Path(__file__).parent
+    possible_paths = [
+        script_dir.parent / "resources" / "matomo" / "bots.yml",  # ../resources/matomo/bots.yml
+        script_dir / "resources" / "matomo" / "bots.yml",  # resources/matomo/bots.yml
+        Path("resources") / "matomo" / "bots.yml",  # ./resources/matomo/bots.yml
+    ]
+
+    bots_yml_path = None
+    for path in possible_paths:
+        if path.exists():
+            bots_yml_path = path
+            break
+
+    if not bots_yml_path:
+        logger.error(f"Matomo bots.yml not found! Tried: {[str(p) for p in possible_paths]}")
+        logger.warning("Falling back to basic bot detection patterns")
+        # Fallback to basic patterns
+        return [
+            re.compile(r'bot', re.IGNORECASE),
+            re.compile(r'crawler', re.IGNORECASE),
+            re.compile(r'spider', re.IGNORECASE),
+        ]
+
+    try:
+        with open(bots_yml_path, 'r', encoding='utf-8') as f:
+            bots_data = yaml.safe_load(f)
+
+        # Compile regex patterns from YAML
+        bot_patterns = []
+        for bot in bots_data:
+            if 'regex' in bot:
+                try:
+                    # Compile each regex pattern (case-insensitive)
+                    pattern = re.compile(bot['regex'], re.IGNORECASE)
+                    bot_patterns.append(pattern)
+                except re.error as e:
+                    logger.warning(f"Invalid regex pattern '{bot['regex']}': {e}")
+                    continue
+
+        logger.info(f"Loaded {len(bot_patterns)} bot detection patterns from Matomo: {bots_yml_path}")
+        return bot_patterns
+
+    except Exception as e:
+        logger.error(f"Error loading Matomo bot patterns from {bots_yml_path}: {e}")
+        logger.warning("Falling back to basic bot detection patterns")
+        return [
+            re.compile(r'bot', re.IGNORECASE),
+            re.compile(r'crawler', re.IGNORECASE),
+            re.compile(r'spider', re.IGNORECASE),
+        ]
+
+# Load Matomo bot patterns
+BOT_PATTERNS = load_matomo_bot_patterns()
 
 class DatabaseConnection:
     """Database connection manager for Supabase."""
@@ -123,32 +157,27 @@ class UserAgentNormalizer:
         if verbose:
             logger.info(f"Configuration: batch_size={batch_size}, max_records={max_records}, "
                        f"dry_run={dry_run}, force={force}, table={table_name}")
-            logger.info(f"Bot detection signatures: {BOT_SIGNATURES}")
+            logger.info(f"Bot detection patterns: {len(BOT_PATTERNS)} Matomo regex patterns loaded")
     
     def is_bot_user_agent(self, user_agent_string):
-        """Check if a user agent string belongs to a bot.
-        
+        """Check if a user agent string belongs to a bot using Matomo's patterns.
+
         Args:
             user_agent_string (str): Raw user agent string
-            
+
         Returns:
             bool: True if the user agent appears to be a bot
         """
         if not user_agent_string:
             return False
-            
-        # Convert user agent to lowercase for case-insensitive matching
-        ua_lower = user_agent_string.lower()
-        
-        # Check against known bot signatures (case-insensitive)
-        for signature in BOT_SIGNATURES:
-            # Convert signature to lowercase to ensure consistency
-            signature_lower = signature.lower()
-            if signature_lower in ua_lower:
+
+        # Check against Matomo bot patterns (regex matching)
+        for pattern in BOT_PATTERNS:
+            if pattern.search(user_agent_string):
                 if self.verbose:
-                    logger.info(f"Bot detected by signature '{signature}' in UA: {user_agent_string[:100]}")
+                    logger.info(f"Bot detected by pattern '{pattern.pattern}' in UA: {user_agent_string[:100]}")
                 return True
-                
+
         return False
     
     def normalize_user_agent(self, user_agent_string):
