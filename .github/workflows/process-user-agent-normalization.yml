@@ -1,0 +1,82 @@
+name: Process User Agent Normalization
+
+on:
+  # TODO: Enable automated schedule after testing is complete
+  # schedule:
+  #   # Run every 4 hours (less frequent than IP geolocation)
+  #   - cron: '0 */4 * * *'
+
+  workflow_dispatch:
+    # Manual triggering only (for testing and on-demand processing)
+
+jobs:
+  process-user-agent-normalization:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('scripts/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Verify database credentials
+        env:
+          SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
+          SUPABASE_PSQL_DB_NAME: ${{ vars.SUPABASE_PSQL_DB_NAME }}
+          SUPABASE_PSQL_DB_USER: ${{ vars.SUPABASE_PSQL_DB_USER }}
+        run: |
+          echo "Database connection config:"
+          echo "  Host: $SUPABASE_PSQL_DB_HOST"
+          echo "  Database: $SUPABASE_PSQL_DB_NAME"
+          echo "  User: $SUPABASE_PSQL_DB_USER"
+          echo "  Password: [hidden]"
+
+      - name: Verify bot signatures config exists
+        run: |
+          if [ ! -f "scripts/populate_normalized_stats.json" ]; then
+            echo "ERROR: Bot signatures config file not found!"
+            echo "Expected location: scripts/populate_normalized_stats.json"
+            exit 1
+          fi
+          echo "✓ Bot signatures config found"
+
+          # Show signature count
+          SIGNATURE_COUNT=$(cat scripts/populate_normalized_stats.json | python3 -c "import json,sys; print(len(json.load(sys.stdin)['bot_signatures']))")
+          echo "Loaded $SIGNATURE_COUNT bot signatures"
+
+      - name: Run user agent normalization processing
+        env:
+          SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
+          SUPABASE_PSQL_DB_NAME: ${{ vars.SUPABASE_PSQL_DB_NAME }}
+          SUPABASE_PSQL_DB_USER: ${{ vars.SUPABASE_PSQL_DB_USER }}
+          SUPABASE_PSQL_DB_PASSWORD: ${{ secrets.SUPABASE_PSQL_DB_PASSWORD }}
+        run: |
+          echo "Starting user agent normalization processing..."
+          python scripts/populate_normalized_stats.py
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-agent-normalization-logs-${{ github.run_number }}
+          path: logs/populate_normalized_stats.log
+          retention-days: 7
