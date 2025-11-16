@@ -162,9 +162,14 @@ def normalize_domain(domain):
         return domain
 
 
-def bulk_process(limit=None, dry_run=False):
+def bulk_process(limit=None, dry_run=False, force=False):
     """
     Bulk process user agent normalization.
+
+    Args:
+        limit: Maximum number of records to process
+        dry_run: If True, process but don't update database
+        force: If True, reprocess ALL records (not just NULL values)
 
     Steps:
     1. Extract all records to process
@@ -193,11 +198,13 @@ def bulk_process(limit=None, dry_run=False):
 
         export_file = "/tmp/user_agents_export.csv"
 
-        copy_query = f"""
-            COPY (
-                SELECT id, user_agent, referrer, domain
-                FROM metrics_page_views
-                WHERE (
+        # Build WHERE clause based on force flag
+        if force:
+            # Force mode: process ALL records
+            where_clause = "WHERE 1=1"
+        else:
+            # Incremental mode: only process records with NULL normalized values
+            where_clause = """WHERE (
                     (user_agent IS NOT NULL AND (
                         browser_normalized IS NULL OR
                         os_normalized IS NULL OR
@@ -205,7 +212,13 @@ def bulk_process(limit=None, dry_run=False):
                     )) OR
                     (referrer IS NOT NULL AND referrer_normalized IS NULL) OR
                     (domain IS NOT NULL AND domain_normalized IS NULL)
-                )
+                )"""
+
+        copy_query = f"""
+            COPY (
+                SELECT id, user_agent, referrer, domain
+                FROM metrics_page_views
+                {where_clause}
                 ORDER BY timestamp DESC
                 {f'LIMIT {limit}' if limit else ''}
             ) TO STDOUT WITH CSV HEADER
@@ -365,6 +378,8 @@ def main():
                        help='Limit number of records to process (for testing)')
     parser.add_argument('--dry-run', action='store_true',
                        help='Process but do not update database')
+    parser.add_argument('--force', action='store_true',
+                       help='Force reprocess ALL records (not just NULL values)')
 
     args = parser.parse_args()
 
@@ -376,7 +391,10 @@ def main():
         if args.dry_run:
             logger.info("DRY RUN MODE: No database changes will be made")
 
-        bulk_process(limit=args.limit, dry_run=args.dry_run)
+        if args.force:
+            logger.info("FORCE MODE: Reprocessing ALL records (including already normalized)")
+
+        bulk_process(limit=args.limit, dry_run=args.dry_run, force=args.force)
 
         return 0
 
