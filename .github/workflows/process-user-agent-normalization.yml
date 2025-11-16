@@ -7,16 +7,6 @@ on:
   #   - cron: '0 */4 * * *'
 
   workflow_dispatch:
-    # Manual triggering with options
-    inputs:
-      full_refresh:
-        description: 'Force full refresh?'
-        required: true
-        default: 'No'
-        type: choice
-        options:
-          - 'No'
-          - 'Yes'
 
 jobs:
   process-user-agent-normalization:
@@ -80,13 +70,8 @@ jobs:
           SUPABASE_PSQL_DB_PASSWORD: ${{ secrets.SUPABASE_PSQL_DB_PASSWORD }}
         run: |
           echo "Starting user agent normalization processing..."
-          if [ "${{ inputs.full_refresh }}" == "Yes" ]; then
-            echo "⚡ Full refresh mode: reprocessing ALL records"
-            python scripts/populate_normalized_stats.py --force
-          else
-            echo "📊 Incremental mode: processing only new records"
-            python scripts/populate_normalized_stats.py
-          fi
+          echo "📊 Incremental mode: processing only new/unprocessed records"
+          python scripts/populate_normalized_stats.py
 
       - name: Upload logs
         if: always()

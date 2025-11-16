@@ -3,14 +3,6 @@ name: Bulk User Agent Normalization
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Dry run (preview only, no database changes)?'
-        required: true
-        type: choice
-        default: 'No'
-        options:
-          - 'No'
-          - 'Yes'
       force_refresh:
         description: 'Force full refresh (reprocess ALL records)?'
         required: true
@@ -94,14 +86,6 @@ jobs:
 
           # Build command
           CMD="python scripts/bulk_normalize_user_agents.py"
-
-          # Add dry-run if specified
-          if [ "${{ inputs.dry_run }}" == "Yes" ]; then
-            echo "🔍 Mode: DRY RUN (no database changes)"
-            CMD="$CMD --dry-run"
-          else
-            echo "⚡ Mode: FULL PROCESSING (database will be updated)"
-          fi
 
           # Add force refresh if specified
           if [ "${{ inputs.force_refresh }}" == "Yes" ]; then
