@@ -1,0 +1,123 @@
+name: Bulk User Agent Normalization
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Limit number of records (leave empty for all)'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry run (preview only, no database changes)?'
+        required: true
+        type: choice
+        default: 'No'
+        options:
+          - 'No'
+          - 'Yes'
+
+jobs:
+  bulk-normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('scripts/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+
+      - name: Create logs directory
+        run: mkdir -p logs
+
+      - name: Verify database credentials
+        env:
+          SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
+          SUPABASE_PSQL_DB_NAME: ${{ vars.SUPABASE_PSQL_DB_NAME }}
+          SUPABASE_PSQL_DB_USER: ${{ vars.SUPABASE_PSQL_DB_USER }}
+        run: |
+          echo "Verifying database configuration..."
+          if [ -z "$SUPABASE_PSQL_DB_HOST" ]; then
+            echo "ERROR: SUPABASE_PSQL_DB_HOST not set!"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_PSQL_DB_NAME" ]; then
+            echo "ERROR: SUPABASE_PSQL_DB_NAME not set!"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_PSQL_DB_USER" ]; then
+            echo "ERROR: SUPABASE_PSQL_DB_USER not set!"
+            exit 1
+          fi
+          echo "✓ Database configuration verified"
+
+      - name: Verify Matomo bot patterns exist
+        run: |
+          if [ ! -f "resources/matomo/bots.yml" ]; then
+            echo "ERROR: Matomo bots.yml file not found!"
+            exit 1
+          fi
+          echo "✓ Matomo bot patterns found"
+          PATTERN_COUNT=$(grep -c "^- regex:" resources/matomo/bots.yml)
+          echo "Loaded $PATTERN_COUNT bot detection patterns from Matomo"
+
+      - name: Run bulk user agent normalization
+        env:
+          SUPABASE_PSQL_DB_HOST: ${{ vars.SUPABASE_PSQL_DB_HOST }}
+          SUPABASE_PSQL_DB_NAME: ${{ vars.SUPABASE_PSQL_DB_NAME }}
+          SUPABASE_PSQL_DB_USER: ${{ vars.SUPABASE_PSQL_DB_USER }}
+          SUPABASE_PSQL_DB_PASSWORD: ${{ secrets.SUPABASE_PSQL_DB_PASSWORD }}
+        run: |
+          echo "========================================="
+          echo "BULK USER AGENT NORMALIZATION"
+          echo "========================================="
+
+          # Build command
+          CMD="python scripts/bulk_normalize_user_agents.py"
+
+          # Add limit if specified
+          if [ -n "${{ inputs.limit }}" ]; then
+            echo "📊 Processing limit: ${{ inputs.limit }} records"
+            CMD="$CMD --limit ${{ inputs.limit }}"
+          else
+            echo "📊 Processing: ALL records"
+          fi
+
+          # Add dry-run if specified
+          if [ "${{ inputs.dry_run }}" == "Yes" ]; then
+            echo "🔍 Mode: DRY RUN (no database changes)"
+            CMD="$CMD --dry-run"
+          else
+            echo "⚡ Mode: FULL PROCESSING (database will be updated)"
+          fi
+
+          echo "========================================="
+          echo "Running: $CMD"
+          echo "========================================="
+
+          $CMD
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bulk-normalization-logs
+          path: logs/
+          retention-days: 7
