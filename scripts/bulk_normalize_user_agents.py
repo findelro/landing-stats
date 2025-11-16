@@ -8,6 +8,12 @@ This script processes user agent normalization in bulk for maximum performance:
 3. Creates temporary table with normalized data
 4. Single bulk UPDATE from temp table to live table
 
+Bot Detection:
+- Uses 711 Matomo bot patterns from resources/matomo/bots.yml
+- For bots: Sets is_bot=true, leaves browser/os/device fields NULL
+- For users: Sets is_bot=false, populates browser/os/device with actual values
+- Preserves actual bot information (e.g., "Googlebot") in user_agent field
+
 Performance: ~10-100x faster than row-by-row processing
 Estimated time: 400K records in 5-15 minutes (vs 6-7 hours)
 
@@ -95,17 +101,25 @@ def is_bot(user_agent_string):
 
 
 def normalize_user_agent(user_agent_string):
-    """Normalize user agent to browser, OS, device."""
-    if not user_agent_string:
-        return None, None, None
+    """Normalize user agent to browser, OS, device, and bot flag.
 
+    Returns:
+        tuple: (browser, os, device, is_bot)
+        - For bots: (None, None, None, True) - normalized fields left NULL
+        - For users: (browser, os, device, False) - populated values
+        - For empty: (None, None, None, False)
+    """
+    if not user_agent_string:
+        return None, None, None, False
+
+    # If bot detected, return NULLs for normalized fields + is_bot flag
     if is_bot(user_agent_string):
-        return "Bot", "Bot", "Bot"
+        return None, None, None, True
 
     try:
         parsed_ua = user_agent_parser.Parse(user_agent_string)
 
-        # Extract and normalize (simplified version - use full logic from original script)
+        # Extract and normalize (simplified version - use full logic from populate_normalized_stats.py)
         browser_family = parsed_ua['user_agent']['family']
         os_family = parsed_ua['os']['family']
         device_family = parsed_ua['device']['family']
@@ -123,11 +137,11 @@ def normalize_user_agent(user_agent_string):
         else:
             device = 'Desktop'
 
-        return browser, os_name, device
+        return browser, os_name, device, False
 
     except Exception as e:
         logger.error(f"Error normalizing UA: {e}")
-        return None, None, None
+        return None, None, None, False
 
 
 def normalize_referrer(referrer):
@@ -257,16 +271,16 @@ def bulk_process(limit=None, dry_run=False, force=False):
             # Skip header from input, write header to output
             next(reader)
             writer.writerow(['id', 'browser_normalized', 'os_normalized', 'device_normalized',
-                           'referrer_normalized', 'domain_normalized'])
+                           'referrer_normalized', 'domain_normalized', 'is_bot'])
 
             for i, row in enumerate(reader):
                 record_id, user_agent, referrer, domain = row
 
                 # Process user agent
                 if user_agent:
-                    browser, os_name, device = normalize_user_agent(user_agent)
+                    browser, os_name, device, is_bot_flag = normalize_user_agent(user_agent)
                 else:
-                    browser, os_name, device = None, None, None
+                    browser, os_name, device, is_bot_flag = None, None, None, False
 
                 # Process referrer
                 referrer_norm = normalize_referrer(referrer) if referrer else None
@@ -281,7 +295,8 @@ def bulk_process(limit=None, dry_run=False, force=False):
                     os_name or '',
                     device or '',
                     referrer_norm or '',
-                    domain_norm or ''
+                    domain_norm or '',
+                    'true' if is_bot_flag else 'false'  # PostgreSQL boolean format
                 ])
 
                 processed_count += 1
@@ -332,7 +347,8 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 os_normalized TEXT,
                 device_normalized TEXT,
                 referrer_normalized TEXT,
-                domain_normalized TEXT
+                domain_normalized TEXT,
+                is_bot BOOLEAN
             )
         """)
 
@@ -349,7 +365,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 sep=',',
                 null='',
                 columns=['id', 'browser_normalized', 'os_normalized', 'device_normalized',
-                        'referrer_normalized', 'domain_normalized']
+                        'referrer_normalized', 'domain_normalized', 'is_bot']
             )
 
         logger.info(f"Inserted {processed_count} records into temp table using COPY FROM")
@@ -366,7 +382,8 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 os_normalized = COALESCE(t.os_normalized, m.os_normalized),
                 device_normalized = COALESCE(t.device_normalized, m.device_normalized),
                 referrer_normalized = COALESCE(t.referrer_normalized, m.referrer_normalized),
-                domain_normalized = COALESCE(t.domain_normalized, m.domain_normalized)
+                domain_normalized = COALESCE(t.domain_normalized, m.domain_normalized),
+                is_bot = COALESCE(t.is_bot, m.is_bot)
             FROM temp_normalized_data AS t
             WHERE m.id = t.id
         """)
