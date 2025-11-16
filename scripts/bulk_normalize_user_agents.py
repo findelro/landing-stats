@@ -306,6 +306,22 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 logger.info(f"Sample data:\n{''.join(lines)}")
             return
 
+        # Close connection after offline processing to prevent timeout
+        logger.info("Closing connection (offline processing complete)...")
+        conn.close()
+
+        # Reconnect for database update phase
+        logger.info("Reconnecting to database for update phase...")
+        conn = psycopg2.connect(
+            host=os.getenv('SUPABASE_PSQL_DB_HOST'),
+            dbname=os.getenv('SUPABASE_PSQL_DB_NAME'),
+            user=os.getenv('SUPABASE_PSQL_DB_USER'),
+            password=os.getenv('SUPABASE_PSQL_DB_PASSWORD'),
+            port=5432,
+            sslmode='require'
+        )
+        cur = conn.cursor()
+
         # Step 3: Create temporary table
         logger.info("Step 3: Creating temporary table...")
 
