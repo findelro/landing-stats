@@ -1,3 +1,6 @@
+-- Migration 000: Baseline get_dashboard_data function
+-- This is the original version before any bot grouping or rare item filtering
+
 CREATE OR REPLACE FUNCTION public.get_dashboard_data(
   start_date timestamp with time zone,
   end_date timestamp with time zone,
