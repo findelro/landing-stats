@@ -9,9 +9,10 @@ This script processes user agent normalization in bulk for maximum performance:
 4. Single bulk UPDATE from temp table to live table
 
 Bot Detection:
-- Uses 711 Matomo bot patterns from resources/matomo/bots.yml (traditional crawlers)
-- PLUS custom patterns for programmatic clients (curl, axios, python-requests, etc.)
-- Custom patterns checked FIRST (19 patterns - fast), then Matomo (711 patterns)
+- Uses 149 custom bot signatures from resources/custom_bots.yml
+  (programmatic clients, monitoring tools, automation frameworks, etc.)
+- PLUS 711 Matomo bot patterns from resources/matomo/bots.yml (traditional crawlers)
+- Custom signatures checked FIRST (fast substring matching), then Matomo (regex patterns)
 - For bots: Sets is_bot=true, browser/os/device set to NULL (don't store bot lies)
 - For users: Sets is_bot=false, populates browser/os/device with actual values
 - Original user_agent string always preserved for reference
@@ -92,52 +93,76 @@ def load_matomo_bot_patterns():
         return [re.compile(r'bot', re.IGNORECASE)]
 
 
-BOT_PATTERNS = load_matomo_bot_patterns()
+def load_custom_bot_signatures():
+    """Load custom bot signatures from custom_bots.yml file.
 
-# Custom patterns for programmatic clients that Matomo doesn't catch
-# These are clearly automated tools/bots, not real users
-PROGRAMMATIC_CLIENT_PATTERNS = [
-    re.compile(r'\bcurl/', re.IGNORECASE),
-    re.compile(r'\bwget/', re.IGNORECASE),
-    re.compile(r'\bpython-requests/', re.IGNORECASE),
-    re.compile(r'\baxios/', re.IGNORECASE),
-    re.compile(r'\bokhttp/', re.IGNORECASE),
-    re.compile(r'\bGo-http-client/', re.IGNORECASE),
-    re.compile(r'\bJava/\d', re.IGNORECASE),
-    re.compile(r'\bDart/\d', re.IGNORECASE),
-    re.compile(r'\bnode-fetch/', re.IGNORECASE),
-    re.compile(r'\bApache-HttpClient/', re.IGNORECASE),
-    re.compile(r'\bPython-urllib/', re.IGNORECASE),
-    re.compile(r'\bPython/\d.*aiohttp/', re.IGNORECASE),
-    re.compile(r'\bAnyConnect', re.IGNORECASE),
-    re.compile(r'\bOpenVAS', re.IGNORECASE),
-    re.compile(r'\bDalvik/', re.IGNORECASE),  # Android system client, not real user
-    re.compile(r'\bScanner\b', re.IGNORECASE),
-    re.compile(r'\bScraper\b', re.IGNORECASE),
-    re.compile(r'\bEmailAutodiscovery', re.IGNORECASE),
-    re.compile(r'\bWinRM', re.IGNORECASE),
-]
+    Returns list of lowercase signature strings for case-insensitive substring matching.
+    """
+    script_dir = Path(__file__).parent
+    possible_paths = [
+        script_dir.parent / "resources" / "custom_bots.yml",
+        script_dir / "resources" / "custom_bots.yml",
+        Path("resources") / "custom_bots.yml",
+    ]
+
+    custom_bots_path = None
+    for path in possible_paths:
+        if path.exists():
+            custom_bots_path = path
+            break
+
+    if not custom_bots_path:
+        logger.error(f"Custom bots.yml not found!")
+        return ['bot']  # Fallback to basic 'bot' signature
+
+    try:
+        with open(custom_bots_path, 'r', encoding='utf-8') as f:
+            custom_data = yaml.safe_load(f)
+
+        signatures = custom_data.get('bot_signatures', [])
+        # Convert to lowercase for case-insensitive matching
+        signatures_lower = [sig.lower() for sig in signatures]
+
+        logger.info(f"Loaded {len(signatures_lower)} custom bot signatures")
+        return signatures_lower
+
+    except Exception as e:
+        logger.error(f"Error loading custom bot signatures: {e}")
+        return ['bot']  # Fallback
+
+
+# Load bot detection data at module initialization
+MATOMO_BOT_PATTERNS = load_matomo_bot_patterns()
+CUSTOM_BOT_SIGNATURES = load_custom_bot_signatures()
 
 
 def is_bot(user_agent_string):
-    """Check if user agent is a bot using both custom programmatic client detection and Matomo patterns.
+    """Check if user agent is a bot using custom signatures and Matomo patterns.
 
-    Performance optimization: Check our 19 targeted patterns first (fast!), then fall back to
-    Matomo's 711 patterns only if needed. Our patterns catch common programmatic clients
-    (curl, axios, python-requests) that Matomo misses.
+    Performance optimization: Check our 149 custom signatures first (fast substring matching),
+    then fall back to Matomo's 711 regex patterns only if needed.
+
+    Custom signatures catch programmatic clients (curl, axios, python-requests),
+    monitoring tools (datadog, prometheus), automation (playwright, puppeteer),
+    and other non-human traffic that Matomo patterns may miss.
     """
     if not user_agent_string:
         return False
 
-    # Check programmatic clients FIRST (19 patterns - fast!)
-    # These catch curl, axios, python-requests, etc. that Matomo misses
-    if any(pattern.search(user_agent_string) for pattern in PROGRAMMATIC_CLIENT_PATTERNS):
-        return True
+    # Convert to lowercase once for case-insensitive matching
+    ua_lower = user_agent_string.lower()
 
-    # Fall back to Matomo patterns (711 patterns - comprehensive)
+    # Check custom signatures FIRST (149 signatures - fast substring matching!)
+    # These catch programmatic clients, monitoring tools, automation, etc.
+    for signature in CUSTOM_BOT_SIGNATURES:
+        if signature in ua_lower:
+            return True
+
+    # Fall back to Matomo patterns (711 regex patterns - comprehensive)
     # These catch traditional crawlers like Googlebot, Bingbot, etc.
-    if any(pattern.search(user_agent_string) for pattern in BOT_PATTERNS):
-        return True
+    for pattern in MATOMO_BOT_PATTERNS:
+        if pattern.search(user_agent_string):
+            return True
 
     return False
 

@@ -68,15 +68,23 @@ jobs:
           fi
           echo "✓ Database configuration verified"
 
-      - name: Verify Matomo bot patterns exist
+      - name: Verify bot detection files exist
         run: |
           if [ ! -f "resources/matomo/bots.yml" ]; then
             echo "ERROR: Matomo bots.yml file not found!"
             exit 1
           fi
           echo "✓ Matomo bot patterns found"
-          PATTERN_COUNT=$(grep -c "^- regex:" resources/matomo/bots.yml)
-          echo "Loaded $PATTERN_COUNT bot detection patterns from Matomo"
+          MATOMO_COUNT=$(grep -c "^- regex:" resources/matomo/bots.yml)
+          echo "Loaded $MATOMO_COUNT bot detection patterns from Matomo"
+
+          if [ ! -f "resources/custom_bots.yml" ]; then
+            echo "ERROR: Custom bots.yml file not found!"
+            exit 1
+          fi
+          echo "✓ Custom bot signatures found"
+          CUSTOM_COUNT=$(grep -c "^  - " resources/custom_bots.yml)
+          echo "Loaded $CUSTOM_COUNT custom bot signatures"
 
       - name: Run bulk user agent normalization
         env:
