@@ -106,7 +106,7 @@ export default function OSIcon({ osName, size = 20, className = '' }: OSIconProp
       // Convert slug to proper Simple Icons export name
       // Simple Icons exports are named: si + capitalized slug (e.g., siMacos, siAndroid, siArchlinux)
       const iconKey = `si${iconSlug.charAt(0).toUpperCase()}${iconSlug.slice(1)}`;
-      const icon = (SimpleIcons as any)[iconKey];
+      const icon = SimpleIcons[iconKey as keyof typeof SimpleIcons] as { title: string; hex: string; path: string } | undefined;
 
       if (icon) {
         return (
