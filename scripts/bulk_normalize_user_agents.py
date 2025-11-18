@@ -204,6 +204,10 @@ def normalize_user_agent(user_agent_string):
         browser = browser_family if browser_family and browser_family != 'Other' else None
         os_name = os_family if os_family and os_family != 'Other' else None
 
+        # Consolidate Chrome variants into single "Chrome" entry
+        if browser in ['Chrome Mobile', 'Chrome Mobile iOS', 'Chrome Mobile WebView', 'Google', 'Chromium']:
+            browser = 'Chrome'
+
         # Simple device detection
         ua_lower = user_agent_string.lower()
         if 'mobile' in ua_lower or 'phone' in ua_lower:
