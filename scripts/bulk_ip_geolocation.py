@@ -90,28 +90,25 @@ def lookup_ip_location(ip_str, country_reader):
     return country
 
 
-def bulk_process(limit=None, dry_run=False, force=False):
+def process_table(table_name, limit=None, dry_run=False, force=False, country_reader=None):
     """
-    Bulk process IP geolocation.
+    Process IP geolocation for a single table.
 
     Args:
+        table_name: Name of table to process (metrics_page_views or metrics_events)
         limit: Maximum number of records to process
         dry_run: If True, process but don't update database
         force: If True, reprocess ALL records (not just NULL values)
+        country_reader: GeoIP reader instance (shared across tables)
 
-    Steps:
-    1. Extract all IPs to process
-    2. Process in memory (MaxMind GeoIP lookups)
-    3. Create temp table
-    4. Bulk UPDATE from temp table
+    Returns:
+        Number of records processed
     """
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Processing table: {table_name}")
+    logger.info(f"{'='*60}")
 
     start_time = time.time()
-
-    # Validate GeoIP databases
-    if not validate_databases():
-        logger.error("GeoIP database validation failed")
-        return False
 
     # Connect to database
     conn = psycopg2.connect(
@@ -129,7 +126,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
         # Step 1: Extract records to CSV using PostgreSQL COPY (fastest export)
         logger.info("Step 1: Extracting records using PostgreSQL COPY TO...")
 
-        export_file = "/tmp/ip_geolocation_export.csv"
+        export_file = f"/tmp/ip_geolocation_export_{table_name}.csv"
 
         # Build WHERE clause based on force flag
         if force:
@@ -142,7 +139,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
         copy_query = f"""
             COPY (
                 SELECT id, ip
-                FROM metrics_page_views
+                FROM {table_name}
                 {where_clause}
                 ORDER BY timestamp DESC
                 {f'LIMIT {limit}' if limit else ''}
@@ -161,8 +158,8 @@ def bulk_process(limit=None, dry_run=False, force=False):
         logger.info(f"Found {total_records} records to process")
 
         if total_records == 0:
-            logger.info("No records to process!")
-            return True
+            logger.info(f"No records to process for {table_name}!")
+            return 0
 
         # Close connection after export (will reconnect later)
         logger.info("Closing connection (offline processing starting)...")
@@ -171,10 +168,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
         # Step 2: Process CSV file and write results to new CSV
         logger.info("Step 2: Processing CSV file with GeoIP lookups...")
 
-        # Open GeoIP reader
-        country_reader = geoip2.database.Reader(str(COUNTRY_DB_PATH))
-
-        processed_file = "/tmp/ip_geolocation_processed.csv"
+        processed_file = f"/tmp/ip_geolocation_processed_{table_name}.csv"
 
         batch_size = 10000
         processed_count = 0
@@ -216,9 +210,6 @@ def bulk_process(limit=None, dry_run=False, force=False):
                     remaining = estimated_total - elapsed
                     logger.info(f"Processed {processed_count}/{total_records} ({progress:.1%}) - {remaining/60:.1f} min remaining")
 
-        # Close GeoIP reader
-        country_reader.close()
-
         processing_time = time.time() - start_time
         logger.info(f"Processing completed in {processing_time:.1f}s ({processed_count/processing_time:.0f} records/sec)")
         logger.info(f"Unknown countries: {unknown_country_count}")
@@ -230,7 +221,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
             with open(processed_file, 'r') as f:
                 lines = [next(f) for _ in range(min(4, processed_count + 1))]
                 logger.info(f"Sample data:\\n{''.join(lines)}")
-            return True
+            return processed_count
 
         # Reconnect for database update phase
         logger.info("Reconnecting to database for update phase...")
@@ -276,8 +267,8 @@ def bulk_process(limit=None, dry_run=False, force=False):
 
         update_start = time.time()
 
-        cur.execute("""
-            UPDATE metrics_page_views AS m
+        cur.execute(f"""
+            UPDATE {table_name} AS m
             SET country = COALESCE(NULLIF(t.country, ''), m.country)
             FROM temp_ip_geolocation AS t
             WHERE m.id = t.id
@@ -289,14 +280,70 @@ def bulk_process(limit=None, dry_run=False, force=False):
         total_time = time.time() - start_time
 
         logger.info(f"Bulk update completed in {update_time:.1f}s")
-        logger.info(f"TOTAL TIME: {total_time:.1f}s ({total_records/total_time:.0f} records/sec)")
+        logger.info(f"Table {table_name} completed in {total_time:.1f}s ({total_records/total_time:.0f} records/sec)")
         logger.info(f"Successfully processed {total_records} records!")
 
-        return True
+        return processed_count
 
     finally:
         if conn and not conn.closed:
             conn.close()
+
+
+def bulk_process(limit=None, dry_run=False, force=False):
+    """
+    Bulk process IP geolocation for ALL tables.
+
+    Args:
+        limit: Maximum number of records to process PER TABLE
+        dry_run: If True, process but don't update database
+        force: If True, reprocess ALL records (not just NULL values)
+
+    Steps:
+    1. Extract all IPs to process from each table
+    2. Process in memory (MaxMind GeoIP lookups)
+    3. Create temp table per table
+    4. Bulk UPDATE from temp table per table
+    """
+
+    start_time = time.time()
+
+    # Validate GeoIP databases
+    if not validate_databases():
+        logger.error("GeoIP database validation failed")
+        return False
+
+    # Open GeoIP reader ONCE (shared across all tables)
+    logger.info("Opening GeoIP database reader...")
+    country_reader = geoip2.database.Reader(str(COUNTRY_DB_PATH))
+
+    try:
+        total_processed = 0
+
+        # Process metrics_page_views table
+        count = process_table('metrics_page_views', limit, dry_run, force, country_reader)
+        total_processed += count
+
+        # Process metrics_events table
+        count = process_table('metrics_events', limit, dry_run, force, country_reader)
+        total_processed += count
+
+        total_time = time.time() - start_time
+        logger.info(f"\n{'='*60}")
+        logger.info(f"OVERALL SUMMARY")
+        logger.info(f"{'='*60}")
+        logger.info(f"Total records processed across all tables: {total_processed}")
+        logger.info(f"Total time: {total_time:.1f}s")
+        if total_processed > 0:
+            logger.info(f"Average rate: {total_processed/total_time:.0f} records/sec")
+        logger.info(f"{'='*60}")
+
+        return True
+
+    finally:
+        # Close GeoIP reader
+        country_reader.close()
+        logger.info("GeoIP database reader closed")
 
 
 def main():
