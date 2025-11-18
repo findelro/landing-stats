@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { countries } from 'countries-list';
+import OSIcon from './OSIcon';
 
 // Simplified TableData interface that doesn't require an index signature
 interface TableData {
@@ -76,7 +77,11 @@ export default function TableWithPercentage<T extends TableData>({
   // Function to get the appropriate icon based on type and name
   const getIcon = (type: string, name: string): string => {
     const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
-    
+
+    // Shared icons across all categories
+    if (name === 'Bot') return '/images/bot.png';
+    if (name === 'Other') return '/images/other.png';
+
     // Handle specific icon mappings
     if (type === 'Browsers') {
       // Specific browser mappings
@@ -171,14 +176,18 @@ export default function TableWithPercentage<T extends TableData>({
       
       return (
         <Link href={href} className="flex items-center hover:text-blue-600">
-          {title === 'Browsers' || title === 'OS' || title === 'Devices' ? (
+          {title === 'OS' ? (
             <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
-              <Image 
-                src={getIcon(title, displayName)} 
+              <OSIcon osName={displayName} size={20} />
+            </div>
+          ) : title === 'Browsers' || title === 'Devices' ? (
+            <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
+              <Image
+                src={getIcon(title, displayName)}
                 alt={displayName}
                 {...getIconDimensions()}
                 unoptimized
-                style={{ 
+                style={{
                   objectFit: 'contain',
                   width: '100%',
                   height: '100%'
@@ -207,14 +216,18 @@ export default function TableWithPercentage<T extends TableData>({
     
     return (
       <div className="flex items-center">
-        {title === 'Browsers' || title === 'OS' || title === 'Devices' ? (
+        {title === 'OS' ? (
           <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
-            <Image 
-              src={getIcon(title, displayName)} 
+            <OSIcon osName={displayName} size={20} />
+          </div>
+        ) : title === 'Browsers' || title === 'Devices' ? (
+          <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
+            <Image
+              src={getIcon(title, displayName)}
               alt={displayName}
               {...getIconDimensions()}
               unoptimized
-              style={{ 
+              style={{
                 objectFit: 'contain',
                 width: '100%',
                 height: '100%'
