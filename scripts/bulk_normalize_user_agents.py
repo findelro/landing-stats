@@ -257,21 +257,36 @@ def normalize_domain(domain):
         return domain
 
 
-def bulk_process(limit=None, dry_run=False, force=False):
+def get_table_columns(conn, table_name):
+    """Query database to get list of columns in a table."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = %s
+        ORDER BY ordinal_position
+    """, (table_name,))
+    columns = [row[0] for row in cur.fetchall()]
+    cur.close()
+    return columns
+
+
+def process_table(table_name, limit=None, dry_run=False, force=False):
     """
-    Bulk process user agent normalization.
+    Process user agent normalization for a single table.
 
     Args:
+        table_name: Name of table to process (metrics_page_views or metrics_events)
         limit: Maximum number of records to process
         dry_run: If True, process but don't update database
         force: If True, reprocess ALL records (not just NULL values)
 
-    Steps:
-    1. Extract all records to process
-    2. Process in memory (fast!)
-    3. Create temp table
-    4. Bulk UPDATE from temp table
+    Returns:
+        Number of records processed
     """
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Processing table: {table_name}")
+    logger.info(f"{'='*60}")
 
     start_time = time.time()
 
@@ -288,31 +303,52 @@ def bulk_process(limit=None, dry_run=False, force=False):
     try:
         cur = conn.cursor()
 
+        # Detect which columns exist in this table
+        all_columns = get_table_columns(conn, table_name)
+        has_referrer = 'referrer' in all_columns and 'referrer_normalized' in all_columns
+        has_domain_normalized = 'domain' in all_columns and 'domain_normalized' in all_columns
+
+        logger.info(f"Table schema detected:")
+        logger.info(f"  - user_agent normalization: ✓ (always)")
+        logger.info(f"  - referrer normalization: {'✓' if has_referrer else '✗ (skipping)'}")
+        logger.info(f"  - domain normalization: {'✓' if has_domain_normalized else '✗ (skipping)'}")
+
         # Step 1: Extract records to CSV using PostgreSQL COPY (fastest export)
         logger.info("Step 1: Extracting records using PostgreSQL COPY TO...")
 
-        export_file = "/tmp/user_agents_export.csv"
+        export_file = f"/tmp/user_agents_export_{table_name}.csv"
 
-        # Build WHERE clause based on force flag
+        # Build SELECT columns based on available fields
+        select_columns = ['id', 'user_agent']
+        if has_referrer:
+            select_columns.append('referrer')
+        if has_domain_normalized:
+            select_columns.append('domain')
+
+        # Build WHERE clause based on force flag and available columns
         if force:
             # Force mode: process ALL records
             where_clause = "WHERE 1=1"
         else:
             # Incremental mode: only process records with NULL normalized values
-            where_clause = """WHERE (
-                    (user_agent IS NOT NULL AND (
+            conditions = ["""(user_agent IS NOT NULL AND (
                         browser_normalized IS NULL OR
                         os_normalized IS NULL OR
                         device_normalized IS NULL
-                    )) OR
-                    (referrer IS NOT NULL AND referrer_normalized IS NULL) OR
-                    (domain IS NOT NULL AND domain_normalized IS NULL)
-                )"""
+                    ))"""]
+
+            if has_referrer:
+                conditions.append("(referrer IS NOT NULL AND referrer_normalized IS NULL)")
+
+            if has_domain_normalized:
+                conditions.append("(domain IS NOT NULL AND domain_normalized IS NULL)")
+
+            where_clause = f"WHERE ({' OR '.join(conditions)})"
 
         copy_query = f"""
             COPY (
-                SELECT id, user_agent, referrer, domain
-                FROM metrics_page_views
+                SELECT {', '.join(select_columns)}
+                FROM {table_name}
                 {where_clause}
                 ORDER BY timestamp DESC
                 {f'LIMIT {limit}' if limit else ''}
@@ -331,14 +367,14 @@ def bulk_process(limit=None, dry_run=False, force=False):
         logger.info(f"Found {total_records} records to process")
 
         if total_records == 0:
-            logger.info("No records to process!")
-            return
+            logger.info(f"No records to process for {table_name}!")
+            return 0
 
         # Step 2: Process CSV file and write results to new CSV
         logger.info("Step 2: Processing CSV file...")
 
         import csv as csv_module
-        processed_file = "/tmp/user_agents_processed.csv"
+        processed_file = f"/tmp/user_agents_processed_{table_name}.csv"
 
         batch_size = 10000
         processed_count = 0
@@ -349,13 +385,33 @@ def bulk_process(limit=None, dry_run=False, force=False):
             reader = csv_module.reader(infile)
             writer = csv_module.writer(outfile)
 
-            # Skip header from input, write header to output
+            # Skip header from input, write header to output based on available columns
             next(reader)
-            writer.writerow(['id', 'browser_normalized', 'os_normalized', 'device_normalized',
-                           'referrer_normalized', 'domain_normalized', 'is_bot'])
+            output_columns = ['id', 'browser_normalized', 'os_normalized', 'device_normalized']
+            if has_referrer:
+                output_columns.append('referrer_normalized')
+            if has_domain_normalized:
+                output_columns.append('domain_normalized')
+            output_columns.append('is_bot')
+            writer.writerow(output_columns)
 
             for i, row in enumerate(reader):
-                record_id, user_agent, referrer, domain = row
+                # Parse row based on what columns were selected
+                record_id = row[0]
+                user_agent = row[1] if len(row) > 1 else None
+
+                # Parse optional columns based on their presence
+                col_idx = 2
+                referrer = None
+                domain = None
+
+                if has_referrer and len(row) > col_idx:
+                    referrer = row[col_idx]
+                    col_idx += 1
+
+                if has_domain_normalized and len(row) > col_idx:
+                    domain = row[col_idx]
+                    col_idx += 1
 
                 # Process user agent
                 if user_agent:
@@ -363,22 +419,29 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 else:
                     browser, os_name, device, is_bot_flag = None, None, None, False
 
-                # Process referrer
-                referrer_norm = normalize_referrer(referrer) if referrer else None
+                # Process referrer (only if column exists)
+                referrer_norm = normalize_referrer(referrer) if has_referrer and referrer else None
 
-                # Process domain
-                domain_norm = normalize_domain(domain) if domain else None
+                # Process domain (only if column exists)
+                domain_norm = normalize_domain(domain) if has_domain_normalized and domain else None
 
-                # Write processed row
-                writer.writerow([
+                # Write processed row (dynamically based on available columns)
+                output_row = [
                     record_id,
                     browser or '',
                     os_name or '',
-                    device or '',
-                    referrer_norm or '',
-                    domain_norm or '',
-                    'true' if is_bot_flag else 'false'  # PostgreSQL boolean format
-                ])
+                    device or ''
+                ]
+
+                if has_referrer:
+                    output_row.append(referrer_norm or '')
+
+                if has_domain_normalized:
+                    output_row.append(domain_norm or '')
+
+                output_row.append('true' if is_bot_flag else 'false')  # PostgreSQL boolean format
+
+                writer.writerow(output_row)
 
                 processed_count += 1
 
@@ -400,7 +463,7 @@ def bulk_process(limit=None, dry_run=False, force=False):
             with open(processed_file, 'r') as f:
                 lines = [next(f) for _ in range(min(4, processed_count + 1))]
                 logger.info(f"Sample data:\n{''.join(lines)}")
-            return
+            return processed_count
 
         # Close connection after offline processing to prevent timeout
         logger.info("Closing connection (offline processing complete)...")
@@ -418,23 +481,40 @@ def bulk_process(limit=None, dry_run=False, force=False):
         )
         cur = conn.cursor()
 
-        # Step 3: Create temporary table
+        # Step 3: Create temporary table (dynamically based on available columns)
         logger.info("Step 3: Creating temporary table...")
 
-        cur.execute("""
+        temp_columns = [
+            "id BIGINT PRIMARY KEY",
+            "browser_normalized TEXT",
+            "os_normalized TEXT",
+            "device_normalized TEXT"
+        ]
+
+        if has_referrer:
+            temp_columns.append("referrer_normalized TEXT")
+
+        if has_domain_normalized:
+            temp_columns.append("domain_normalized TEXT")
+
+        temp_columns.append("is_bot BOOLEAN")
+
+        cur.execute(f"""
             CREATE TEMPORARY TABLE temp_normalized_data (
-                id BIGINT PRIMARY KEY,
-                browser_normalized TEXT,
-                os_normalized TEXT,
-                device_normalized TEXT,
-                referrer_normalized TEXT,
-                domain_normalized TEXT,
-                is_bot BOOLEAN
+                {', '.join(temp_columns)}
             )
         """)
 
         # Step 4: Bulk insert using PostgreSQL COPY FROM (fastest method)
         logger.info("Step 4: Bulk inserting using PostgreSQL COPY FROM...")
+
+        # Build column list for COPY FROM
+        copy_columns = ['id', 'browser_normalized', 'os_normalized', 'device_normalized']
+        if has_referrer:
+            copy_columns.append('referrer_normalized')
+        if has_domain_normalized:
+            copy_columns.append('domain_normalized')
+        copy_columns.append('is_bot')
 
         with open(processed_file, 'r', encoding='utf-8') as f:
             # Skip header
@@ -445,26 +525,35 @@ def bulk_process(limit=None, dry_run=False, force=False):
                 'temp_normalized_data',
                 sep=',',
                 null='',
-                columns=['id', 'browser_normalized', 'os_normalized', 'device_normalized',
-                        'referrer_normalized', 'domain_normalized', 'is_bot']
+                columns=copy_columns
             )
 
         logger.info(f"Inserted {processed_count} records into temp table using COPY FROM")
 
-        # Step 5: Bulk UPDATE from temp table
+        # Step 5: Bulk UPDATE from temp table (dynamically based on available columns)
         logger.info("Step 5: Bulk updating main table...")
 
         update_start = time.time()
 
-        cur.execute("""
-            UPDATE metrics_page_views AS m
+        # Build SET clause dynamically
+        set_clauses = [
+            "browser_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.browser_normalized, m.browser_normalized) END",
+            "os_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.os_normalized, m.os_normalized) END",
+            "device_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.device_normalized, m.device_normalized) END"
+        ]
+
+        if has_referrer:
+            set_clauses.append("referrer_normalized = COALESCE(t.referrer_normalized, m.referrer_normalized)")
+
+        if has_domain_normalized:
+            set_clauses.append("domain_normalized = COALESCE(t.domain_normalized, m.domain_normalized)")
+
+        set_clauses.append("is_bot = COALESCE(t.is_bot, m.is_bot)")
+
+        cur.execute(f"""
+            UPDATE {table_name} AS m
             SET
-                browser_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.browser_normalized, m.browser_normalized) END,
-                os_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.os_normalized, m.os_normalized) END,
-                device_normalized = CASE WHEN t.is_bot THEN NULL ELSE COALESCE(t.device_normalized, m.device_normalized) END,
-                referrer_normalized = COALESCE(t.referrer_normalized, m.referrer_normalized),
-                domain_normalized = COALESCE(t.domain_normalized, m.domain_normalized),
-                is_bot = COALESCE(t.is_bot, m.is_bot)
+                {', '.join(set_clauses)}
             FROM temp_normalized_data AS t
             WHERE m.id = t.id
         """)
@@ -475,11 +564,61 @@ def bulk_process(limit=None, dry_run=False, force=False):
         total_time = time.time() - start_time
 
         logger.info(f"Bulk update completed in {update_time:.1f}s")
-        logger.info(f"TOTAL TIME: {total_time:.1f}s ({total_records/total_time:.0f} records/sec)")
+        logger.info(f"Table {table_name} completed in {total_time:.1f}s ({total_records/total_time:.0f} records/sec)")
         logger.info(f"Successfully processed {total_records} records!")
 
+        return processed_count
+
     finally:
-        conn.close()
+        if conn and not conn.closed:
+            conn.close()
+
+
+def bulk_process(limit=None, dry_run=False, force=False):
+    """
+    Bulk process user agent normalization for ALL tables.
+
+    Args:
+        limit: Maximum number of records to process PER TABLE
+        dry_run: If True, process but don't update database
+        force: If True, reprocess ALL records (not just NULL values)
+
+    Steps:
+    1. Extract all records to process from each table
+    2. Process in memory (fast!)
+    3. Create temp table per table
+    4. Bulk UPDATE from temp table per table
+    """
+    start_time = time.time()
+
+    try:
+        total_processed = 0
+
+        # Process metrics_page_views table
+        count = process_table('metrics_page_views', limit, dry_run, force)
+        total_processed += count
+
+        # Process metrics_events table
+        count = process_table('metrics_events', limit, dry_run, force)
+        total_processed += count
+
+        total_time = time.time() - start_time
+        logger.info(f"\n{'='*60}")
+        logger.info(f"OVERALL SUMMARY")
+        logger.info(f"{'='*60}")
+        logger.info(f"Total records processed across all tables: {total_processed}")
+        logger.info(f"Total time: {total_time:.1f}s")
+        if total_processed > 0:
+            logger.info(f"Average rate: {total_processed/total_time:.0f} records/sec")
+        logger.info(f"{'='*60}")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error in bulk_process: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def main():
@@ -508,9 +647,9 @@ def main():
         if args.force:
             logger.info("FORCE MODE: Reprocessing ALL records (including already normalized)")
 
-        bulk_process(limit=args.limit, dry_run=args.dry_run, force=args.force)
+        success = bulk_process(limit=args.limit, dry_run=args.dry_run, force=args.force)
 
-        return 0
+        return 0 if success else 1
 
     except KeyboardInterrupt:
         logger.warning("Process interrupted by user")
