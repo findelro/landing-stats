@@ -164,6 +164,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_SERVICE_KEY}
 - Error boundaries and loading states are implemented consistently
 - TypeScript interfaces define all data structures in `lib/types.ts`
 
+### Testing and Quality Checks
+- **ALWAYS run `npm run build` before committing** - This checks for TypeScript errors and runs ESLint
+- **ALWAYS run `npm run lint` if needed** - Additional linting for code quality
+- **Check build output** - Verify all pages compile successfully and no warnings
+- Never commit code with linting errors or type errors
+- Testing workflow: make changes → run build → check for errors → fix issues → test functionality → commit
+
 ## Working with Database Operations
 
 ### MCP Server Tools

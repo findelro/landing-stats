@@ -21,7 +21,6 @@ interface TableWithPercentageProps<T extends TableData> {
   namePlaceholder?: string;
   startDate?: string;
   endDate?: string;
-  onItemClick?: (item: T) => void;
   initialItemsToShow?: number;
   itemsPerLoad?: number;
   showAllByDefault?: boolean;
@@ -36,7 +35,6 @@ export default function TableWithPercentage<T extends TableData>({
   namePlaceholder = 'Other',
   startDate,
   endDate,
-  onItemClick,
   initialItemsToShow = 10,
   itemsPerLoad = 20,
   showAllByDefault = false,

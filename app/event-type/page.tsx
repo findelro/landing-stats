@@ -112,7 +112,7 @@ function EventTypeContent() {
               <StatsCard>
                 {eventData.length === 0 ? (
                   <div className="text-gray-500 text-center py-8">
-                    No events found for "{eventType}" in the selected date range
+                    No events found for &quot;{eventType}&quot; in the selected date range
                   </div>
                 ) : (
                   <>
