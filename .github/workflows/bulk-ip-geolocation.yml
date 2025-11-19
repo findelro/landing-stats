@@ -1,9 +1,9 @@
 name: Bulk IP Geolocation
 
 on:
-  # Automatic incremental processing every 2 hours
+  # Automatic incremental processing every 4 hours (00:45, 04:45, 08:45, 12:45, 16:45, 20:45 UTC)
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '45 0,4,8,12,16,20 * * *'
 
   # Manual trigger with option for full refresh
   workflow_dispatch:

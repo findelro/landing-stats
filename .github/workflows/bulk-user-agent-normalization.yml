@@ -1,9 +1,10 @@
 name: Bulk User Agent Normalization
 
 on:
-  # Automatic incremental processing every 2 hours
+  # Automatic incremental processing every 4 hours (02:45, 06:45, 10:45, 14:45, 18:45, 22:45 UTC)
+  # Staggered 2 hours after IP geolocation to prevent database conflicts
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '45 2,6,10,14,18,22 * * *'
 
   # Manual trigger with option for full refresh
   workflow_dispatch:
