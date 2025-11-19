@@ -7,13 +7,11 @@ import StatsCard from '@/components/StatsCard';
 import TableWithPercentage from '@/components/TableWithPercentage';
 import Header from '@/components/Header';
 import dynamic from 'next/dynamic';
-import { 
-  DomainStats, 
-  ReferrerStats, 
-  BrowserStats, 
-  OSStats, 
-  DeviceStats, 
-  CountryStats 
+import {
+  BrowserStats,
+  OSStats,
+  DeviceStats,
+  CountryStats
 } from '@/lib/types';
 import { APP_CONFIG } from '@/lib/config';
 
@@ -27,7 +25,15 @@ const InteractiveVectorMap = dynamic(() => import('@/components/VectorMap'), {
   )
 });
 
-export default function Home() {
+// Event type stats interface
+interface EventTypeStats {
+  event_type: string;
+  count: number;
+  visitors: number;
+  percentage: number;
+}
+
+export default function EventsPage() {
   // Date range state
   const [dateRange, setDateRange] = useState({
     startDate: format(new Date(Date.now() - APP_CONFIG.API.DEFAULT_DATE_RANGE_DAYS * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
@@ -38,13 +44,12 @@ export default function Home() {
   const [includeBots, setIncludeBots] = useState(false);
 
   // Stats data state
-  const [domainsData, setDomainsData] = useState<DomainStats[]>([]);
-  const [referrersData, setReferrersData] = useState<ReferrerStats[]>([]);
+  const [eventTypesData, setEventTypesData] = useState<EventTypeStats[]>([]);
   const [browsersData, setBrowsersData] = useState<BrowserStats[]>([]);
   const [osData, setOsData] = useState<OSStats[]>([]);
   const [devicesData, setDevicesData] = useState<DeviceStats[]>([]);
   const [countriesData, setCountriesData] = useState<CountryStats[]>([]);
-  
+
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{
@@ -76,13 +81,13 @@ export default function Home() {
     const fetchStats = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         // Fetch all stats from the API
         const response = await fetch(
-          `/api/stats?type=all&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&maxResults=${APP_CONFIG.API.MAX_RESULTS_PER_SECTION}&includeBots=${includeBots}`
+          `/api/events?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&maxResults=${APP_CONFIG.API.MAX_RESULTS_PER_SECTION}&includeBots=${includeBots}`
         );
-        
+
         if (!response.ok) {
           const errorData = await response.json();
           const error = new Error(errorData.error || 'Failed to fetch data') as Error & {
@@ -95,47 +100,40 @@ export default function Home() {
           error.timestamp = errorData.timestamp;
           throw error;
         }
-        
+
         const result = await response.json();
-        const dashboardData = result.data;
-        
+        const eventsData = result.data;
+
         // Update state with the fetched data
-        // Note: The domain structure is the same, but other data types don't have domain property anymore
-        setDomainsData(dashboardData.domains);
-        
+        setEventTypesData(eventsData.event_types || []);
+
         // Map the data to match the expected structure if necessary
-        const mappedReferrers = dashboardData.referrers.map((item: Omit<ReferrerStats, 'domain'>) => ({
+        const mappedBrowsers = eventsData.browsers.map((item: Omit<BrowserStats, 'domain'>) => ({
           ...item,
-          domain: '' 
+          domain: ''
         }));
-        
-        const mappedBrowsers = dashboardData.browsers.map((item: Omit<BrowserStats, 'domain'>) => ({
+
+        const mappedOs = eventsData.os.map((item: Omit<OSStats, 'domain'>) => ({
           ...item,
-          domain: '' 
+          domain: ''
         }));
-        
-        const mappedOs = dashboardData.os.map((item: Omit<OSStats, 'domain'>) => ({
+
+        const mappedDevices = eventsData.devices.map((item: Omit<DeviceStats, 'domain'>) => ({
           ...item,
-          domain: '' 
+          domain: ''
         }));
-        
-        const mappedDevices = dashboardData.devices.map((item: Omit<DeviceStats, 'domain'>) => ({
+
+        const mappedCountries = eventsData.countries.map((item: Omit<CountryStats, 'domain'>) => ({
           ...item,
-          domain: '' 
+          domain: ''
         }));
-        
-        const mappedCountries = dashboardData.countries.map((item: Omit<CountryStats, 'domain'>) => ({
-          ...item,
-          domain: '' 
-        }));
-        
-        setReferrersData(mappedReferrers);
+
         setBrowsersData(mappedBrowsers);
         setOsData(mappedOs);
         setDevicesData(mappedDevices);
         setCountriesData(mappedCountries);
       } catch (err: unknown) {
-        console.error('Error fetching stats:', err);
+        console.error('Error fetching events stats:', err);
         const error = err as Error & {
           code?: string;
           attempts?: number;
@@ -157,13 +155,13 @@ export default function Home() {
 
   return (
     <>
-      <Header title="Domain Analytics Dashboard" />
+      <Header title="Events Analytics Dashboard" />
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
             {/* Date Range Picker */}
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Analytics Overview</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Events Overview</h2>
               <DateRangePicker
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}
@@ -216,29 +214,17 @@ export default function Home() {
               </div>
             ) : (
               <>
-                {/* Domains and Referrers Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Domains Stats */}
+                {/* Event Types */}
+                <div className="grid grid-cols-1 gap-6">
                   <StatsCard>
-                    <TableWithPercentage 
-                      data={domainsData} 
-                      title="Domains"
-                      nameKey="domain"
-                      initialItemsToShow={APP_CONFIG.TABLE_PAGINATION.DOMAINS.INITIAL_ITEMS}
-                      itemsPerLoad={APP_CONFIG.TABLE_PAGINATION.DOMAINS.ITEMS_PER_LOAD}
-                    />
-                  </StatsCard>
-
-                  {/* Referrers Stats */}
-                  <StatsCard>
-                    <TableWithPercentage 
-                      data={referrersData} 
-                      title="Referrers"
-                      nameKey="referrer"
+                    <TableWithPercentage
+                      data={eventTypesData}
+                      title="Event Types"
+                      nameKey="event_type"
                       startDate={dateRange.startDate}
                       endDate={dateRange.endDate}
-                      initialItemsToShow={APP_CONFIG.TABLE_PAGINATION.REFERRERS.INITIAL_ITEMS}
-                      itemsPerLoad={APP_CONFIG.TABLE_PAGINATION.REFERRERS.ITEMS_PER_LOAD}
+                      initialItemsToShow={APP_CONFIG.TABLE_PAGINATION.DOMAINS.INITIAL_ITEMS}
+                      itemsPerLoad={APP_CONFIG.TABLE_PAGINATION.DOMAINS.ITEMS_PER_LOAD}
                     />
                   </StatsCard>
                 </div>
@@ -247,8 +233,8 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Browsers Stats */}
                   <StatsCard>
-                    <TableWithPercentage 
-                      data={browsersData} 
+                    <TableWithPercentage
+                      data={browsersData}
                       title="Browsers"
                       nameKey="browser"
                       showAllByDefault={true}
@@ -257,8 +243,8 @@ export default function Home() {
 
                   {/* OS Stats */}
                   <StatsCard>
-                    <TableWithPercentage 
-                      data={osData} 
+                    <TableWithPercentage
+                      data={osData}
                       title="OS"
                       nameKey="os"
                       showAllByDefault={true}
@@ -267,8 +253,8 @@ export default function Home() {
 
                   {/* Devices Stats */}
                   <StatsCard>
-                    <TableWithPercentage 
-                      data={devicesData} 
+                    <TableWithPercentage
+                      data={devicesData}
                       title="Devices"
                       nameKey="device"
                       showAllByDefault={true}
@@ -279,7 +265,7 @@ export default function Home() {
                 {/* World Map and Countries side by side */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                   {/* Map Visualization */}
-                  <StatsCard title="Visitor Locations" className="lg:col-span-3">
+                  <StatsCard title="Event Locations" className="lg:col-span-3">
                     <div className="h-96">
                       <InteractiveVectorMap data={countriesData} className="h-full w-full" />
                     </div>
@@ -288,8 +274,8 @@ export default function Home() {
                   {/* Countries Stats */}
                   <StatsCard className="lg:col-span-2">
                     <div className="h-96 overflow-auto">
-                      <TableWithPercentage 
-                        data={countriesData} 
+                      <TableWithPercentage
+                        data={countriesData}
                         title="Countries"
                         nameKey="country"
                         showFlags={true}

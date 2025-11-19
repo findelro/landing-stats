@@ -11,6 +11,11 @@ export interface DashboardOptions {
   includeBots?: boolean;
 }
 
+export interface EventsDashboardOptions {
+  maxResultsPerSection?: number;
+  includeBots?: boolean;
+}
+
 export interface ApiError extends Error {
   code?: string;
   details?: unknown;
@@ -119,6 +124,60 @@ export const getExternalReferrers = async (
     console.error('Error fetching external referrers:', error);
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch external referrers after multiple attempts';
+    const apiError = new Error(errorMessage) as ApiError;
+    apiError.code = (error as ApiError).code || 'FETCH_ERROR';
+    apiError.details = (error as ApiError).details;
+    apiError.attempts = (error as ApiError).attempts;
+
+    throw apiError;
+  }
+};
+
+// Function to get events dashboard data with retry logic
+export const getEventsDashboardData = async (
+  startDate: Date,
+  endDate: Date,
+  options: EventsDashboardOptions = {}
+) => {
+  try {
+    const result = await withRetry(
+      async () => {
+        const { data, error } = await supabase.rpc('get_events_dashboard_data', {
+          start_date: formatDate(startDate),
+          end_date: formatDate(endDate),
+          max_results_per_section: options.maxResultsPerSection ?? 50,
+          include_bots: options.includeBots ?? true
+        });
+
+        if (error) {
+          const apiError = new Error(
+            error.message || 'Failed to fetch events dashboard data'
+          ) as ApiError;
+          apiError.code = error.code;
+          apiError.details = error.details;
+          throw apiError;
+        }
+
+        return data;
+      },
+      {
+        maxRetries: 3,
+        initialDelayMs: 1000,
+        maxDelayMs: 5000,
+      }
+    );
+
+    return result || {
+      event_types: [],
+      browsers: [],
+      os: [],
+      devices: [],
+      countries: []
+    };
+  } catch (error: unknown) {
+    console.error('Error fetching events dashboard data:', error);
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch events dashboard data after multiple attempts';
     const apiError = new Error(errorMessage) as ApiError;
     apiError.code = (error as ApiError).code || 'FETCH_ERROR';
     apiError.details = (error as ApiError).details;

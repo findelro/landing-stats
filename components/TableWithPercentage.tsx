@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { countries } from 'countries-list';
 import OSIcon from './OSIcon';
+import BrowserIcon from './BrowserIcon';
 
 // Simplified TableData interface that doesn't require an index signature
 interface TableData {
@@ -74,85 +75,21 @@ export default function TableWithPercentage<T extends TableData>({
     setItemsToShow(initialItemsToShow);
   };
 
-  // Function to get the appropriate icon based on type and name
-  const getIcon = (type: string, name: string): string => {
+  // Function to get the appropriate icon for devices (only used for devices now)
+  const getDeviceIcon = (name: string): string => {
     const normalizedName = name.toLowerCase().replace(/\s+/g, '-');
 
-    // Shared icons across all categories
+    // Shared icons
     if (name === 'Bot') return '/images/bot.png';
     if (name === 'Other') return '/images/other.png';
 
-    // Handle specific icon mappings
-    if (type === 'Browsers') {
-      // Specific browser mappings
-      if (name === 'Chrome (iOS)') return '/images/browser/crios.png';
-      if (name === 'Chrome (webview)') return '/images/browser/chromium-webview.png';
-      if (name === 'Edge (Chromium)') return '/images/browser/edge-chromium.png';
-      if (name === 'Firefox (iOS)') return '/images/browser/fxios.png';
-      if (name === 'Samsung Internet') return '/images/browser/samsung.png';
-      if (name === 'Android WebView') return '/images/browser/android-webview.png';
-      if (name === 'iOS WebView') return '/images/browser/ios-webview.png';
-      
-      // Generic browser mappings
-      if (normalizedName.includes('chrome')) return '/images/browser/chrome.png';
-      if (normalizedName.includes('firefox')) return '/images/browser/firefox.png';
-      if (normalizedName.includes('safari')) return '/images/browser/safari.png';
-      if (normalizedName.includes('edge')) return '/images/browser/edge-chromium.png';
-      if (normalizedName.includes('opera')) return '/images/browser/opera.png';
-      if (normalizedName.includes('yandex')) return '/images/browser/yandexbrowser.png';
-      
-      return `/images/browser/${normalizedName}.png`;
-    } else if (type === 'OS') {
-      // Windows versions
-      if (name.includes('Windows 10') || name.includes('Windows 11')) {
-        return '/images/os/windows-10.png';
-      }
-      if (name.includes('Windows XP')) return '/images/os/windows-xp.png';
-      if (name.includes('Windows 7')) return '/images/os/windows-7.png';
-      if (name.includes('Windows 8.1')) return '/images/os/windows-8-1.png';
-      if (name.includes('Windows 8')) return '/images/os/windows-8.png';
-      if (name.includes('Windows Server 2003')) return '/images/os/windows-server-2003.png';
-      
-      // Other OS
-      if (name === 'macOS' || name.includes('Mac OS')) return '/images/os/mac-os.png';
-      if (name === 'iOS' || name.includes('iPhone OS')) return '/images/os/ios.png';
-      if (name === 'Android') return '/images/os/android-os.png';
-      if (name === 'Linux') return '/images/os/linux.png';
-      if (name === 'Chrome OS') return '/images/os/chrome-os.png';
-      
-      // Normalize for path
-      if (normalizedName.includes('windows')) {
-        return '/images/os/windows-10.png'; // default Windows icon
-      }
-      if (normalizedName.includes('mac')) {
-        return '/images/os/mac-os.png';
-      }
-      if (normalizedName.includes('android')) {
-        return '/images/os/android-os.png';
-      }
-      if (normalizedName.includes('linux')) {
-        return '/images/os/linux.png';
-      }
-      
-      return `/images/os/${normalizedName}.png`;
-    } else if (type === 'Devices') {
-      // Device mappings
-      if (normalizedName.includes('desktop')) return '/images/device/desktop.png';
-      if (normalizedName.includes('laptop')) return '/images/device/laptop.png';
-      if (normalizedName.includes('mobile') || normalizedName.includes('phone')) return '/images/device/mobile.png';
-      if (normalizedName.includes('tablet')) return '/images/device/tablet.png';
-      
-      return `/images/device/${normalizedName}.png`;
-    }
-    
-    // Return unknown icon if no match
-    return '/images/browser/unknown.png';
-  };
+    // Device mappings
+    if (normalizedName.includes('desktop')) return '/images/device/desktop.png';
+    if (normalizedName.includes('laptop')) return '/images/device/laptop.png';
+    if (normalizedName.includes('mobile') || normalizedName.includes('phone')) return '/images/device/mobile.png';
+    if (normalizedName.includes('tablet')) return '/images/device/tablet.png';
 
-  // Function to get icon dimensions based on icon type
-  const getIconDimensions = () => {
-    // Use consistent 20x20 size for all icon types
-    return { width: 20, height: 20 };
+    return `/images/device/${normalizedName}.png`;
   };
 
   // Function to check if item is a referrer
@@ -165,27 +102,38 @@ export default function TableWithPercentage<T extends TableData>({
     return title === 'Domains' && nameKey === 'domain';
   };
 
+  // Function to check if item is an event type
+  const isEventType = () => {
+    return title === 'Event Types' && nameKey === 'event_type';
+  };
+
   // Function to render the name cell based on item type
   const renderNameCell = (item: T, index: number, keyValue: string, displayName: string) => {
     // Determine if item should be clickable
     const isClickableReferrer = isReferrer() && isHomePage && displayName !== namePlaceholder;
     const isClickableDomain = isDomain() && isHomePage && displayName !== namePlaceholder;
-    
+    const isClickableEventType = isEventType() && displayName !== namePlaceholder;
+
     if (isClickableReferrer) {
       const href = `/referrer?domain=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
-      
+
       return (
-        <Link href={href} className="flex items-center hover:text-blue-600">
+        <Link href={href} className="flex items-center hover:text-blue-600 cursor-pointer">
           {title === 'OS' ? (
             <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
               <OSIcon osName={displayName} size={20} />
             </div>
-          ) : title === 'Browsers' || title === 'Devices' ? (
+          ) : title === 'Browsers' ? (
+            <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
+              <BrowserIcon browserName={displayName} size={20} />
+            </div>
+          ) : title === 'Devices' ? (
             <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
               <Image
-                src={getIcon(title, displayName)}
+                src={getDeviceIcon(displayName)}
                 alt={displayName}
-                {...getIconDimensions()}
+                width={20}
+                height={20}
                 unoptimized
                 style={{
                   objectFit: 'contain',
@@ -206,26 +154,41 @@ export default function TableWithPercentage<T extends TableData>({
 
     if (isClickableDomain) {
       const href = `/domain?domain=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
-      
+
       return (
         <Link href={href} className="flex items-center hover:text-blue-600">
           <span>{displayName}</span>
         </Link>
       );
     }
-    
+
+    if (isClickableEventType) {
+      const href = `/event-type?eventType=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
+
+      return (
+        <Link href={href} className="flex items-center hover:text-blue-600">
+          <span>{displayName}</span>
+        </Link>
+      );
+    }
+
     return (
       <div className="flex items-center">
         {title === 'OS' ? (
           <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
             <OSIcon osName={displayName} size={20} />
           </div>
-        ) : title === 'Browsers' || title === 'Devices' ? (
+        ) : title === 'Browsers' ? (
+          <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
+            <BrowserIcon browserName={displayName} size={20} />
+          </div>
+        ) : title === 'Devices' ? (
           <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
             <Image
-              src={getIcon(title, displayName)}
+              src={getDeviceIcon(displayName)}
               alt={displayName}
-              {...getIconDimensions()}
+              width={20}
+              height={20}
               unoptimized
               style={{
                 objectFit: 'contain',
@@ -265,10 +228,9 @@ export default function TableWithPercentage<T extends TableData>({
             const displayName = isUnknown ? namePlaceholder : keyValue;
             
             return (
-              <tr 
-                key={index} 
+              <tr
+                key={index}
                 className="hover:bg-gray-50"
-                onClick={() => onItemClick && onItemClick(item)}
               >
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                   {showFlags ? (

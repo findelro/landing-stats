@@ -142,12 +142,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_SERVICE_KEY}
 
 ## Development Notes
 
+### Git Commit Best Practices
+- **NEVER use `git add -A` or `git add .`** - This is unprofessional and adds unrelated files
+- **ALWAYS add specific files only**: `git add path/to/file1 path/to/file2`
+- **Example**: `git add components/BrowserIcon.tsx lib/api.ts` (NOT `git add -A`)
+- Review what files are being committed with `git status` before committing
+
 ### Data Consistency
 - All unknown/null values display as "Other" throughout the UI
 - Database queries use COALESCE to standardize null handling
 - Percentage calculations are done server-side in SQL
 
-### Performance Considerations  
+### Performance Considerations
 - API routes include query timeouts (30s) to prevent hanging requests
 - Map components use dynamic imports to avoid SSR issues
 - Table pagination limits initial data loads for performance
