@@ -251,10 +251,10 @@ export default function TableWithPercentage<T extends TableData>({
                       <div className="relative flex items-center">
                         {/* Bar graph extending to the right */}
                         <div className="absolute left-0 w-[120px]">
-                          <div 
+                          <div
                             className="absolute top-1/2 -translate-y-1/2 left-0 h-5 bg-blue-50"
-                            style={{ 
-                              width: `${item.percentage}%`,
+                            style={{
+                              width: `calc(70px * ${item.percentage} / 100)`,
                             }}
                           ></div>
                         </div>
