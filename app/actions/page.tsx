@@ -85,7 +85,7 @@ export default function EventsPage() {
       try {
         // Fetch all stats from the API
         const response = await fetch(
-          `/api/events?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&maxResults=${APP_CONFIG.API.MAX_RESULTS_PER_SECTION}&includeBots=${includeBots}`
+          `/api/actions?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&maxResults=${APP_CONFIG.API.MAX_RESULTS_PER_SECTION}&filter=${includeBots ? 'all' : 'real'}`
         );
 
         if (!response.ok) {
