@@ -160,8 +160,7 @@ export default function EventsPage() {
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
             {/* Date Range Picker */}
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Actions Overview</h2>
+            <div className="flex justify-end items-center">
               <DateRangePicker
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}

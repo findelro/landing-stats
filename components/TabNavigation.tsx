@@ -20,9 +20,9 @@ export default function TabNavigation() {
             key={tab.name}
             href={tab.href}
             className={`
-              whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+              whitespace-nowrap py-4 px-1 border-b-2 text-2xl font-bold
               ${tab.current
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-blue-500 text-gray-900'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }
               transition-colors duration-200
