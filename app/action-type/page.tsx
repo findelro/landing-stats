@@ -18,9 +18,9 @@ interface EventDetailStats {
   device: string;
 }
 
-function EventTypeContent() {
+function ActionTypeContent() {
   const searchParams = useSearchParams();
-  const eventType = searchParams.get('eventType');
+  const actionType = searchParams.get('actionType');
 
   // Date range state
   const [dateRange, setDateRange] = useState({
@@ -45,11 +45,11 @@ function EventTypeContent() {
     setIncludeBots(include);
   };
 
-  // Fetch event type detail data
+  // Fetch action type detail data
   useEffect(() => {
     const fetchEventData = async () => {
-      if (!eventType) {
-        setError("No event type specified");
+      if (!actionType) {
+        setError("No action type specified");
         setIsLoading(false);
         return;
       }
@@ -59,7 +59,7 @@ function EventTypeContent() {
 
       try {
         const response = await fetch(
-          `/api/event-type?eventType=${encodeURIComponent(eventType)}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&includeBots=${includeBots}`
+          `/api/action-type?actionType=${encodeURIComponent(actionType)}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&includeBots=${includeBots}`
         );
 
         if (!response.ok) {
@@ -70,7 +70,7 @@ function EventTypeContent() {
         const result = await response.json();
         setEventData(result.data);
       } catch (err) {
-        console.error('Error fetching event type data:', err);
+        console.error('Error fetching action type data:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setIsLoading(false);
@@ -78,11 +78,11 @@ function EventTypeContent() {
     };
 
     fetchEventData();
-  }, [eventType, dateRange.startDate, dateRange.endDate, includeBots]);
+  }, [actionType, dateRange.startDate, dateRange.endDate, includeBots]);
 
   return (
     <>
-      <Header title={`Event Analysis: ${eventType || 'Other'}`} />
+      <Header title={`Action Analysis: ${actionType || 'Other'}`} />
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
@@ -112,13 +112,13 @@ function EventTypeContent() {
               <StatsCard>
                 {eventData.length === 0 ? (
                   <div className="text-gray-500 text-center py-8">
-                    No events found for &quot;{eventType}&quot; in the selected date range
+                    No actions found for &quot;{actionType}&quot; in the selected date range
                   </div>
                 ) : (
                   <>
                     <div className="mb-4">
                       <h3 className="text-lg font-semibold text-gray-900">
-                        {eventData.length} event{eventData.length !== 1 ? 's' : ''} found
+                        {eventData.length} action{eventData.length !== 1 ? 's' : ''} found
                       </h3>
                     </div>
                     <div className="overflow-x-auto">
@@ -188,14 +188,14 @@ function EventTypeContent() {
   );
 }
 
-export default function EventTypeDrillDown() {
+export default function ActionTypeDrillDown() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     }>
-      <EventTypeContent />
+      <ActionTypeContent />
     </Suspense>
   );
 }

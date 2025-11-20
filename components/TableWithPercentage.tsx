@@ -100,8 +100,8 @@ export default function TableWithPercentage<T extends TableData>({
     return title === 'Domains' && nameKey === 'domain';
   };
 
-  // Function to check if item is an event type
-  const isEventType = () => {
+  // Function to check if item is an action type
+  const isActionType = () => {
     return title === 'Event Types' && nameKey === 'event_type';
   };
 
@@ -110,7 +110,7 @@ export default function TableWithPercentage<T extends TableData>({
     // Determine if item should be clickable
     const isClickableReferrer = isReferrer() && isHomePage && displayName !== namePlaceholder;
     const isClickableDomain = isDomain() && isHomePage && displayName !== namePlaceholder;
-    const isClickableEventType = isEventType() && displayName !== namePlaceholder;
+    const isClickableActionType = isActionType() && displayName !== namePlaceholder;
 
     if (isClickableReferrer) {
       const href = `/referrer?domain=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
@@ -160,8 +160,8 @@ export default function TableWithPercentage<T extends TableData>({
       );
     }
 
-    if (isClickableEventType) {
-      const href = `/event-type?eventType=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
+    if (isClickableActionType) {
+      const href = `/action-type?actionType=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
 
       return (
         <Link href={href} className="flex items-center hover:text-blue-600">

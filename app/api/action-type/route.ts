@@ -4,14 +4,14 @@ import { supabase } from '@/lib/supabase';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const eventType = searchParams.get('eventType');
+    const actionType = searchParams.get('actionType');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const includeBots = searchParams.get('includeBots') === 'true';
 
-    if (!eventType || !startDate || !endDate) {
+    if (!actionType || !startDate || !endDate) {
       return NextResponse.json(
-        { error: 'eventType, startDate and endDate are required' },
+        { error: 'actionType, startDate and endDate are required' },
         { status: 400 }
       );
     }
@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
       .select('domain, event_type, timestamp, ip, country, browser_normalized, os_normalized, device_normalized')
       .gte('timestamp', startDateTime.toISOString())
       .lte('timestamp', endDateTime.toISOString())
-      .eq('event_type', eventType)
+      .eq('event_type', actionType)
       .order('timestamp', { ascending: false })
-      .limit(1000); // Limit to 1000 events for performance
+      .limit(1000); // Limit to 1000 actions for performance
 
     // Filter bots if needed
     if (!includeBots) {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
   } catch (error: unknown) {
     console.error('API Error:', error);
 
-    const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching event type data';
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred while fetching action type data';
     const errorCode = (error as { code?: string }).code;
 
     return NextResponse.json(
