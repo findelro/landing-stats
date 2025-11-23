@@ -15,13 +15,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch referrer page visits with target pages
+    // Fetch referrer page visits with target pages - use PostgreSQL date casting for dates only!
     const { data, error } = await supabase
       .from('metrics_page_views')
       .select('referrer, domain, path, timestamp, ip')
       .ilike('referrer_normalized', `%${referrerDomain}%`)
-      .gte('timestamp', `${startDate}T00:00:00Z`)
-      .lte('timestamp', `${endDate}T23:59:59Z`);
+      .gte('timestamp::date', startDate)
+      .lte('timestamp::date', endDate);
     
     if (error) {
       console.error('API Error:', error);

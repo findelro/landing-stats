@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { format } from 'date-fns';
 import { withRetry } from './retry';
 
 export interface DashboardOptions {
@@ -22,23 +21,29 @@ export interface ApiError extends Error {
   attempts?: number;
 }
 
-// Format the date for the Supabase API call
-const formatDate = (date: Date): string => {
-  return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
+// Convert date string (yyyy-MM-dd) to timestamp for Supabase RPC calls
+// For start dates: use beginning of day (00:00:00)
+// For end dates: use end of day (23:59:59)
+const formatStartDate = (dateStr: string): string => {
+  return `${dateStr}T00:00:00Z`;
+};
+
+const formatEndDate = (dateStr: string): string => {
+  return `${dateStr}T23:59:59Z`;
 };
 
 // Function to get all dashboard data in a single call with retry logic
 export const getDashboardData = async (
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
   options: DashboardOptions = {}
 ) => {
   try {
     const result = await withRetry(
       async () => {
         const { data, error } = await supabase.rpc('get_dashboard_data', {
-          start_date: formatDate(startDate),
-          end_date: formatDate(endDate),
+          start_date: formatStartDate(startDate),
+          end_date: formatEndDate(endDate),
           domains: options.domains || null,
           exclude_self_referrals: options.excludeSelfReferrals ?? true,
           group_referrers_by_domain: options.groupReferrersByDomain ?? true,
@@ -88,16 +93,16 @@ export const getDashboardData = async (
 
 // Additional API function for external referrers with retry logic
 export const getExternalReferrers = async (
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
   domains?: string[]
 ) => {
   try {
     const result = await withRetry(
       async () => {
         const { data, error } = await supabase.rpc('get_external_referrers', {
-          start_date: formatDate(startDate),
-          end_date: formatDate(endDate),
+          start_date: formatStartDate(startDate),
+          end_date: formatEndDate(endDate),
           domains: domains || null
         });
 
@@ -135,16 +140,16 @@ export const getExternalReferrers = async (
 
 // Function to get events dashboard data with retry logic
 export const getEventsDashboardData = async (
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
   options: EventsDashboardOptions = {}
 ) => {
   try {
     const result = await withRetry(
       async () => {
         const { data, error } = await supabase.rpc('get_events_dashboard_data', {
-          start_date: formatDate(startDate),
-          end_date: formatDate(endDate),
+          start_date: formatStartDate(startDate),
+          end_date: formatEndDate(endDate),
           max_results_per_section: options.maxResultsPerSection ?? 50,
           include_bots: options.includeBots ?? true
         });

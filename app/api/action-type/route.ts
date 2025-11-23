@@ -16,21 +16,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Construct date range
-    const startDateTime = new Date(startDate);
-    const endDateTime = new Date(endDate);
-
-    // If start and end dates are the same, adjust the end time to the end of the day
-    if (startDate === endDate) {
-      endDateTime.setHours(23, 59, 59, 999);
-    }
-
-    // Build the query
+    // Build the query - use PostgreSQL date casting to compare dates only (no time manipulation needed!)
     let query = supabase
       .from('metrics_events')
       .select('domain, event_type, timestamp, ip, country, browser_normalized, os_normalized, device_normalized')
-      .gte('timestamp', startDateTime.toISOString())
-      .lte('timestamp', endDateTime.toISOString())
+      .gte('timestamp::date', startDate)
+      .lte('timestamp::date', endDate)
       .eq('event_type', actionType)
       .order('timestamp', { ascending: false })
       .limit(1000); // Limit to 1000 actions for performance

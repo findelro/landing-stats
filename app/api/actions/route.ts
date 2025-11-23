@@ -17,17 +17,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const startDateTime = new Date(startDate);
-    const endDateTime = new Date(endDate);
-
-    // If start and end dates are the same, adjust the end time to the end of the day
-    if (startDate === endDate) {
-      endDateTime.setHours(23, 59, 59, 999);
-    }
-
+    // Pass date strings directly - no Date() manipulation needed!
     const eventsData = await getEventsDashboardData(
-      startDateTime,
-      endDateTime,
+      startDate,
+      endDate,
       {
         maxResultsPerSection: maxResults ? parseInt(maxResults) : 200,
         includeBots: includeBots

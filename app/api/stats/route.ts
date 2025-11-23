@@ -57,18 +57,10 @@ export async function GET(request: NextRequest) {
         data = await getCountryStats(startDate, endDate);
         break;
       case 'all':
-        // Use our new efficient dashboard data function instead of multiple separate calls
-        const startDateTime = new Date(startDate);
-        const endDateTime = new Date(endDate);
-        
-        // If start and end dates are the same, adjust the end time to the end of the day
-        if (startDate === endDate) {
-          endDateTime.setHours(23, 59, 59, 999);
-        }
-        
+        // Use our new efficient dashboard data function - pass date strings directly!
         const dashboardData = await getDashboardData(
-          startDateTime, 
-          endDateTime,
+          startDate,
+          endDate,
           {
             // Optional parameters
             excludeSelfReferrals: true,
