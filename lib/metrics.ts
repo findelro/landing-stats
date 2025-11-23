@@ -18,8 +18,8 @@ const getUniqueVisitors = async (domain: string, startDate: string, endDate: str
     .from('metrics_page_views')
     .select('ip')
     .eq('domain', domain)
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
   
   if (error || !data) return 0;
   
@@ -34,8 +34,8 @@ export const getDomainStats = async (startDate: string, endDate: string): Promis
   const { data, error } = await supabase
     .from('metrics_page_views')
     .select('domain')
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
   
   if (error || !data || data.length === 0) return [];
 
@@ -72,8 +72,8 @@ export const getReferrerStats = async (startDate: string, endDate: string): Prom
   const { data, error } = await supabase
     .from('metrics_page_views')
     .select('referrer_normalized, ip')
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate)
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`)
     .not('referrer_normalized', 'is', null);
   
   if (error || !data || data.length === 0) return [];
@@ -109,8 +109,8 @@ export const getDomainHits = async (domain: string, startDate: string, endDate: 
     .from('metrics_page_views')
     .select('path, referrer_normalized, ip, timestamp, country')
     .eq('domain_normalized', domain)
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
 
   if (!includeBots) {
     query = query.neq('browser_normalized', 'Bot');
@@ -145,8 +145,8 @@ export const getBrowserStats = async (startDate: string, endDate: string): Promi
   const { data, error } = await supabase
     .from('metrics_page_views')
     .select('browser_normalized, ip')
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate)
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`)
     .not('browser_normalized', 'is', null);
   
   if (error || !data || data.length === 0) return [];
@@ -181,8 +181,8 @@ export const getOSStats = async (startDate: string, endDate: string): Promise<OS
   const { data, error } = await supabase
     .from('metrics_page_views')
     .select('os_normalized, ip')
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate)
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`)
     .not('os_normalized', 'is', null);
   
   if (error || !data || data.length === 0) return [];
@@ -217,8 +217,8 @@ export const getDeviceStats = async (startDate: string, endDate: string): Promis
   const { data, error } = await supabase
     .from('metrics_page_views')
     .select('device_normalized, ip')
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate)
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`)
     .not('device_normalized', 'is', null);
   
   if (error || !data || data.length === 0) return [];
@@ -253,8 +253,8 @@ export const getCountryStats = async (startDate: string, endDate: string): Promi
   const { data, error } = await supabase
     .from('metrics_page_views')
     .select('country, ip')
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate)
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`)
     .not('country', 'is', null);
   
   if (error || !data || data.length === 0) return [];
@@ -288,8 +288,8 @@ export const getBrowserStatsForDomain = async (domain: string, startDate: string
     .from('metrics_page_views')
     .select('browser_normalized, os_normalized, device_normalized, ip')
     .eq('domain_normalized', domain)
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
 
   const { data: rawData, error } = await query;
   
@@ -333,8 +333,8 @@ export const getOSStatsForDomain = async (domain: string, startDate: string, end
     .from('metrics_page_views')
     .select('browser_normalized, os_normalized, device_normalized, ip')
     .eq('domain_normalized', domain)
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
 
   const { data: rawData, error } = await query;
   
@@ -377,8 +377,8 @@ export const getDeviceStatsForDomain = async (domain: string, startDate: string,
     .from('metrics_page_views')
     .select('browser_normalized, os_normalized, device_normalized, ip')
     .eq('domain_normalized', domain)
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
 
   const { data: rawData, error } = await query;
   
@@ -421,8 +421,8 @@ export const getCountryStatsForDomain = async (domain: string, startDate: string
     .from('metrics_page_views')
     .select('browser_normalized, country, ip')
     .eq('domain_normalized', domain)
-    .gte('timestamp::date', startDate)
-    .lte('timestamp::date', endDate);
+    .gte('timestamp', `${startDate}T00:00:00Z`)
+    .lte('timestamp', `${endDate}T23:59:59Z`);
 
   const { data: rawData, error } = await query;
   

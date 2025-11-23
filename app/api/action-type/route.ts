@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build the query - use PostgreSQL date casting to compare dates only (no time manipulation needed!)
+    // Build the query - use timestamp strings with full day range
     let query = supabase
       .from('metrics_events')
       .select('domain, event_type, timestamp, ip, country, browser_normalized, os_normalized, device_normalized')
-      .gte('timestamp::date', startDate)
-      .lte('timestamp::date', endDate)
+      .gte('timestamp', `${startDate}T00:00:00Z`)
+      .lte('timestamp', `${endDate}T23:59:59Z`)
       .eq('event_type', actionType)
       .order('timestamp', { ascending: false })
       .limit(1000); // Limit to 1000 actions for performance
