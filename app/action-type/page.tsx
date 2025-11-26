@@ -173,15 +173,17 @@ function ActionTypeContent() {
           <div className="space-y-6">
             {/* Date picker and filters */}
             <div className="flex justify-end items-center gap-4">
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeAcknowledged}
-                  onChange={(e) => handleIncludeAcknowledgedChange(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span>Include Ack&apos;d</span>
-              </label>
+              {actionType === 'probe_attempt' && (
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeAcknowledged}
+                    onChange={(e) => handleIncludeAcknowledgedChange(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span>Include Ack&apos;d</span>
+                </label>
+              )}
               <DateRangePicker
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}
@@ -214,30 +216,34 @@ function ActionTypeContent() {
                       <h3 className="text-lg font-semibold text-gray-900">
                         {eventData.length} action{eventData.length !== 1 ? 's' : ''} found
                       </h3>
-                      <button
-                        onClick={handleAcknowledge}
-                        disabled={selectedIds.size === 0 || isAcknowledging}
-                        className={`px-4 py-2 rounded font-medium ${
-                          selectedIds.size === 0 || isAcknowledging
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {isAcknowledging ? 'Acknowledging...' : `Ack ${selectedIds.size > 0 ? `(${selectedIds.size})` : ''}`}
-                      </button>
+                      {actionType === 'probe_attempt' && (
+                        <button
+                          onClick={handleAcknowledge}
+                          disabled={selectedIds.size === 0 || isAcknowledging}
+                          className={`px-4 py-2 rounded font-medium ${
+                            selectedIds.size === 0 || isAcknowledging
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                        >
+                          {isAcknowledging ? 'Acknowledging...' : `Ack ${selectedIds.size > 0 ? `(${selectedIds.size})` : ''}`}
+                        </button>
+                      )}
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full divide-y divide-gray-100">
                         <thead className="bg-white">
                           <tr>
-                            <th scope="col" className="px-4 py-3 text-left">
-                              <input
-                                type="checkbox"
-                                checked={eventData.length > 0 && selectedIds.size === eventData.length}
-                                onChange={handleSelectAll}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                              />
-                            </th>
+                            {actionType === 'probe_attempt' && (
+                              <th scope="col" className="px-4 py-3 text-left">
+                                <input
+                                  type="checkbox"
+                                  checked={eventData.length > 0 && selectedIds.size === eventData.length}
+                                  onChange={handleSelectAll}
+                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                              </th>
+                            )}
                             <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 tracking-wider">
                               Timestamp
                             </th>
@@ -263,16 +269,18 @@ function ActionTypeContent() {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
                           {eventData.map((item) => (
-                            <tr key={item.id} className={`hover:bg-gray-50 ${item.acknowledged ? 'opacity-50 bg-gray-50' : ''}`}>
-                              <td className="px-4 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIds.has(item.id)}
-                                  onChange={() => handleCheckboxChange(item.id)}
-                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                  disabled={item.acknowledged}
-                                />
-                              </td>
+                            <tr key={item.id} className={`hover:bg-gray-50 ${actionType === 'probe_attempt' && item.acknowledged ? 'opacity-50 bg-gray-50' : ''}`}>
+                              {actionType === 'probe_attempt' && (
+                                <td className="px-4 py-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(item.id)}
+                                    onChange={() => handleCheckboxChange(item.id)}
+                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                    disabled={item.acknowledged}
+                                  />
+                                </td>
+                              )}
                               <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                                 {new Date(item.timestamp).toLocaleString()}
                               </td>
