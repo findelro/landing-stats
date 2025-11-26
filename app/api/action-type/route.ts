@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const includeBots = searchParams.get('includeBots') === 'true';
+    const excludeAcknowledged = searchParams.get('excludeAcknowledged') !== 'false'; // Default to true
 
     if (!actionType || !startDate || !endDate) {
       return NextResponse.json(
@@ -19,12 +20,17 @@ export async function GET(request: NextRequest) {
     // Build the query - use timestamp strings with full day range
     let query = supabase
       .from('metrics_events')
-      .select('domain, event_type, timestamp, ip, country, browser_normalized, os_normalized, device_normalized')
+      .select('id, domain, event_type, timestamp, ip, country, browser_normalized, os_normalized, device_normalized, acknowledged')
       .gte('timestamp', `${startDate}T00:00:00Z`)
       .lte('timestamp', `${endDate}T23:59:59Z`)
       .eq('event_type', actionType)
       .order('timestamp', { ascending: false })
       .limit(1000); // Limit to 1000 actions for performance
+
+    // Filter out acknowledged events by default
+    if (excludeAcknowledged) {
+      query = query.eq('acknowledged', false);
+    }
 
     // Filter bots if needed
     if (!includeBots) {
@@ -40,6 +46,7 @@ export async function GET(request: NextRequest) {
 
     // Map the data to match the expected structure
     const mappedData = (data || []).map(item => ({
+      id: item.id,
       domain: item.domain,
       event_type: item.event_type,
       timestamp: item.timestamp,
@@ -47,7 +54,8 @@ export async function GET(request: NextRequest) {
       country: item.country || 'Other',
       browser: item.browser_normalized || 'Other',
       os: item.os_normalized || 'Other',
-      device: item.device_normalized || 'Other'
+      device: item.device_normalized || 'Other',
+      acknowledged: item.acknowledged || false
     }));
 
     return NextResponse.json({ data: mappedData });

@@ -8,6 +8,7 @@ import StatsCard from '@/components/StatsCard';
 import Header from '@/components/Header';
 
 interface EventDetailStats {
+  id: number;
   domain: string;
   event_type: string;
   timestamp: string;
@@ -16,6 +17,7 @@ interface EventDetailStats {
   browser: string;
   os: string;
   device: string;
+  acknowledged: boolean;
 }
 
 function ActionTypeContent() {
@@ -31,10 +33,17 @@ function ActionTypeContent() {
   // Include bots state
   const [includeBots, setIncludeBots] = useState(false);
 
+  // Include acknowledged state
+  const [includeAcknowledged, setIncludeAcknowledged] = useState(false);
+
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eventData, setEventData] = useState<EventDetailStats[]>([]);
+
+  // Selection state for acknowledgment
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isAcknowledging, setIsAcknowledging] = useState(false);
 
   // Handle date range change
   const handleDateRangeChange = (startDate: string, endDate: string) => {
@@ -43,6 +52,77 @@ function ActionTypeContent() {
 
   const handleIncludeBotsChange = (include: boolean) => {
     setIncludeBots(include);
+  };
+
+  const handleIncludeAcknowledgedChange = (include: boolean) => {
+    setIncludeAcknowledged(include);
+  };
+
+  // Handle individual checkbox toggle
+  const handleCheckboxChange = (id: number) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all toggle
+  const handleSelectAll = () => {
+    if (selectedIds.size === eventData.length) {
+      // Deselect all
+      setSelectedIds(new Set());
+    } else {
+      // Select all
+      setSelectedIds(new Set(eventData.map(item => item.id)));
+    }
+  };
+
+  // Handle acknowledge button click
+  const handleAcknowledge = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsAcknowledging(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/acknowledge-events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventIds: Array.from(selectedIds)
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to acknowledge events');
+      }
+
+      // Clear selections and refresh data
+      setSelectedIds(new Set());
+
+      // Refetch the data
+      const dataResponse = await fetch(
+        `/api/action-type?actionType=${encodeURIComponent(actionType!)}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&includeBots=${includeBots}&excludeAcknowledged=${!includeAcknowledged}`
+      );
+
+      if (dataResponse.ok) {
+        const result = await dataResponse.json();
+        setEventData(result.data);
+      }
+    } catch (err) {
+      console.error('Error acknowledging events:', err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setIsAcknowledging(false);
+    }
   };
 
   // Fetch action type detail data
@@ -59,7 +139,7 @@ function ActionTypeContent() {
 
       try {
         const response = await fetch(
-          `/api/action-type?actionType=${encodeURIComponent(actionType)}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&includeBots=${includeBots}`
+          `/api/action-type?actionType=${encodeURIComponent(actionType)}&startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&includeBots=${includeBots}&excludeAcknowledged=${!includeAcknowledged}`
         );
 
         if (!response.ok) {
@@ -78,7 +158,12 @@ function ActionTypeContent() {
     };
 
     fetchEventData();
-  }, [actionType, dateRange.startDate, dateRange.endDate, includeBots]);
+  }, [actionType, dateRange.startDate, dateRange.endDate, includeBots, includeAcknowledged]);
+
+  // Clear selections when data changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [eventData]);
 
   return (
     <>
@@ -86,8 +171,17 @@ function ActionTypeContent() {
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
-            {/* Date picker */}
-            <div className="flex justify-end items-center">
+            {/* Date picker and filters */}
+            <div className="flex justify-end items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeAcknowledged}
+                  onChange={(e) => handleIncludeAcknowledgedChange(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span>Include Ack&apos;d</span>
+              </label>
               <DateRangePicker
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}
@@ -116,15 +210,34 @@ function ActionTypeContent() {
                   </div>
                 ) : (
                   <>
-                    <div className="mb-4">
+                    <div className="mb-4 flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-gray-900">
                         {eventData.length} action{eventData.length !== 1 ? 's' : ''} found
                       </h3>
+                      <button
+                        onClick={handleAcknowledge}
+                        disabled={selectedIds.size === 0 || isAcknowledging}
+                        className={`px-4 py-2 rounded font-medium ${
+                          selectedIds.size === 0 || isAcknowledging
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {isAcknowledging ? 'Acknowledging...' : `Ack ${selectedIds.size > 0 ? `(${selectedIds.size})` : ''}`}
+                      </button>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full divide-y divide-gray-100">
                         <thead className="bg-white">
                           <tr>
+                            <th scope="col" className="px-4 py-3 text-left">
+                              <input
+                                type="checkbox"
+                                checked={eventData.length > 0 && selectedIds.size === eventData.length}
+                                onChange={handleSelectAll}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                            </th>
                             <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 tracking-wider">
                               Timestamp
                             </th>
@@ -149,8 +262,17 @@ function ActionTypeContent() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
-                          {eventData.map((item, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
+                          {eventData.map((item) => (
+                            <tr key={item.id} className={`hover:bg-gray-50 ${item.acknowledged ? 'opacity-50 bg-gray-50' : ''}`}>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(item.id)}
+                                  onChange={() => handleCheckboxChange(item.id)}
+                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                  disabled={item.acknowledged}
+                                />
+                              </td>
                               <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
                                 {new Date(item.timestamp).toLocaleString()}
                               </td>
