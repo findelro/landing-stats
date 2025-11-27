@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const maxResults = searchParams.get('maxResults');
     const filter = searchParams.get('filter') || 'real';
     const includeBots = filter === 'all';
+    const excludeAcknowledged = searchParams.get('excludeAcknowledged') !== 'false'; // Default to true
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -23,7 +24,8 @@ export async function GET(request: NextRequest) {
       endDate,
       {
         maxResultsPerSection: maxResults ? parseInt(maxResults) : 200,
-        includeBots: includeBots
+        includeBots: includeBots,
+        excludeAcknowledged: excludeAcknowledged
       }
     );
 

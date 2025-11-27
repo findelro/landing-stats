@@ -43,6 +43,9 @@ export default function EventsPage() {
   // Include bots state
   const [includeBots, setIncludeBots] = useState(false);
 
+  // Include acknowledged state
+  const [includeAcknowledged, setIncludeAcknowledged] = useState(false);
+
   // Stats data state
   const [eventTypesData, setEventTypesData] = useState<EventTypeStats[]>([]);
   const [browsersData, setBrowsersData] = useState<BrowserStats[]>([]);
@@ -68,6 +71,10 @@ export default function EventsPage() {
     setIncludeBots(include);
   };
 
+  const handleIncludeAcknowledgedChange = (include: boolean) => {
+    setIncludeAcknowledged(include);
+  };
+
   // Manual retry function
   const handleRetry = () => {
     setError(null);
@@ -85,7 +92,7 @@ export default function EventsPage() {
       try {
         // Fetch all stats from the API
         const response = await fetch(
-          `/api/actions?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&maxResults=${APP_CONFIG.API.MAX_RESULTS_PER_SECTION}&filter=${includeBots ? 'all' : 'real'}`
+          `/api/actions?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&maxResults=${APP_CONFIG.API.MAX_RESULTS_PER_SECTION}&filter=${includeBots ? 'all' : 'real'}&excludeAcknowledged=${!includeAcknowledged}`
         );
 
         if (!response.ok) {
@@ -151,7 +158,7 @@ export default function EventsPage() {
     };
 
     fetchStats();
-  }, [dateRange.startDate, dateRange.endDate, includeBots]);
+  }, [dateRange.startDate, dateRange.endDate, includeBots, includeAcknowledged]);
 
   return (
     <>
@@ -160,7 +167,16 @@ export default function EventsPage() {
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
             {/* Date Range Picker */}
-            <div className="flex justify-end items-center">
+            <div className="flex justify-end items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeAcknowledged}
+                  onChange={(e) => handleIncludeAcknowledgedChange(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span>Include Ack&apos;d</span>
+              </label>
               <DateRangePicker
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}

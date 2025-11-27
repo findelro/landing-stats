@@ -32,8 +32,9 @@ export async function POST(request: NextRequest) {
       throw fetchError;
     }
 
-    // Extract unique domains from selected events
+    // Extract unique domains and event types from selected events
     const domains = [...new Set(selectedEvents?.map(e => e.domain) || [])];
+    const eventTypes = [...new Set(selectedEvents?.map(e => e.event_type) || [])];
 
     if (domains.length === 0) {
       return NextResponse.json(
@@ -42,7 +43,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update ALL probe_attempt events with these domains to mark them as acknowledged
+    // Validate event types are acknowledgeable
+    const acknowledgeableTypes = ['probe_attempt', 'checkout_expired', 'checkout_not_found'];
+    const invalidTypes = eventTypes.filter(t => !acknowledgeableTypes.includes(t));
+
+    if (invalidTypes.length > 0) {
+      return NextResponse.json(
+        { error: `Cannot acknowledge event types: ${invalidTypes.join(', ')}. Only probe_attempt, checkout_expired, and checkout_not_found can be acknowledged.` },
+        { status: 400 }
+      );
+    }
+
+    // Update ALL events with these domains and event types to mark them as acknowledged
     const { data, error } = await supabase
       .from('metrics_events')
       .update({
@@ -50,7 +62,7 @@ export async function POST(request: NextRequest) {
         acknowledged_at: new Date().toISOString()
       })
       .in('domain', domains)
-      .eq('event_type', 'probe_attempt')
+      .in('event_type', eventTypes)
       .select('id');
 
     if (error) {
@@ -62,7 +74,8 @@ export async function POST(request: NextRequest) {
       success: true,
       acknowledgedCount: data?.length || 0,
       domainsAcknowledged: domains,
-      message: `Successfully acknowledged ${data?.length || 0} event(s) across ${domains.length} domain(s)`
+      eventTypesAcknowledged: eventTypes,
+      message: `Successfully acknowledged ${data?.length || 0} event(s) across ${domains.length} domain(s) for event types: ${eventTypes.join(', ')}`
     });
   } catch (error: unknown) {
     console.error('API Error:', error);

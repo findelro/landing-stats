@@ -13,6 +13,7 @@ export interface DashboardOptions {
 export interface EventsDashboardOptions {
   maxResultsPerSection?: number;
   includeBots?: boolean;
+  excludeAcknowledged?: boolean;
 }
 
 export interface ApiError extends Error {
@@ -151,7 +152,8 @@ export const getEventsDashboardData = async (
           start_date: formatStartDate(startDate),
           end_date: formatEndDate(endDate),
           max_results_per_section: options.maxResultsPerSection ?? 50,
-          include_bots: options.includeBots ?? true
+          include_bots: options.includeBots ?? true,
+          exclude_acknowledged: options.excludeAcknowledged ?? true
         });
 
         if (error) {

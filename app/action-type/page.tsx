@@ -173,7 +173,7 @@ function ActionTypeContent() {
           <div className="space-y-6">
             {/* Date picker and filters */}
             <div className="flex justify-end items-center gap-4">
-              {actionType === 'probe_attempt' && (
+              {(actionType === 'probe_attempt' || actionType === 'checkout_expired' || actionType === 'checkout_not_found') && (
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input
                     type="checkbox"
@@ -216,7 +216,7 @@ function ActionTypeContent() {
                       <h3 className="text-lg font-semibold text-gray-900">
                         {eventData.length} action{eventData.length !== 1 ? 's' : ''} found
                       </h3>
-                      {actionType === 'probe_attempt' && (
+                      {(actionType === 'probe_attempt' || actionType === 'checkout_expired' || actionType === 'checkout_not_found') && (
                         <button
                           onClick={handleAcknowledge}
                           disabled={selectedIds.size === 0 || isAcknowledging}
@@ -234,7 +234,7 @@ function ActionTypeContent() {
                       <table className="w-full divide-y divide-gray-100">
                         <thead className="bg-white">
                           <tr>
-                            {actionType === 'probe_attempt' && (
+                            {(actionType === 'probe_attempt' || actionType === 'checkout_expired' || actionType === 'checkout_not_found') && (
                               <th scope="col" className="px-4 py-3 text-left">
                                 <input
                                   type="checkbox"
@@ -269,8 +269,8 @@ function ActionTypeContent() {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-100">
                           {eventData.map((item) => (
-                            <tr key={item.id} className={`hover:bg-gray-50 ${actionType === 'probe_attempt' && item.acknowledged ? 'opacity-50 bg-gray-50' : ''}`}>
-                              {actionType === 'probe_attempt' && (
+                            <tr key={item.id} className={`hover:bg-gray-50 ${(actionType === 'probe_attempt' || actionType === 'checkout_expired' || actionType === 'checkout_not_found') && item.acknowledged ? 'opacity-50 bg-gray-50' : ''}`}>
+                              {(actionType === 'probe_attempt' || actionType === 'checkout_expired' || actionType === 'checkout_not_found') && (
                                 <td className="px-4 py-3">
                                   <input
                                     type="checkbox"
