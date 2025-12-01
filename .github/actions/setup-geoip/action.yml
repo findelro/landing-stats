@@ -35,18 +35,33 @@ runs:
           geoip-${{ steps.date.outputs.year }}-
           geoip-
 
+    - name: Check for existing database
+      id: check-db
+      shell: bash
+      run: |
+        if [ -f "resources/geoip/GeoLite2-Country.mmdb" ]; then
+          echo "has_db=true" >> $GITHUB_OUTPUT
+          echo "✅ Database already exists (from cache restore-key)"
+          echo "📁 Size: $(du -h resources/geoip/GeoLite2-Country.mmdb | cut -f1)"
+        else
+          echo "has_db=false" >> $GITHUB_OUTPUT
+          echo "⚠️ No database found - will download"
+        fi
+
     - name: Report cache status
       shell: bash
       run: |
         if [ "${{ steps.cache.outputs.cache-hit }}" == "true" ]; then
-          echo "✅ CACHE HIT - Using cached GeoIP databases"
+          echo "✅ CACHE HIT (exact key match)"
           echo "🔑 Cache key: geoip-${{ steps.date.outputs.year }}-${{ steps.date.outputs.month }}"
+        elif [ "${{ steps.check-db.outputs.has_db }}" == "true" ]; then
+          echo "✅ CACHE RESTORED (from restore-key)"
         else
           echo "⚠️ CACHE MISS - Will download databases"
         fi
 
     - name: Download from MaxMind (if license key provided)
-      if: steps.cache.outputs.cache-hit != 'true' && inputs.maxmind-license-key != ''
+      if: steps.check-db.outputs.has_db != 'true' && inputs.maxmind-license-key != ''
       id: maxmind
       continue-on-error: true
       shell: bash
@@ -94,7 +109,7 @@ runs:
         echo "✅ Uploaded to GitHub Release"
 
     - name: Download from GitHub Release (fallback)
-      if: steps.cache.outputs.cache-hit != 'true' && steps.maxmind.outputs.maxmind_success != 'true'
+      if: steps.check-db.outputs.has_db != 'true' && steps.maxmind.outputs.maxmind_success != 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -132,7 +147,10 @@ runs:
       run: |
         if [ "${{ steps.cache.outputs.cache-hit }}" == "true" ]; then
           echo "source=cache" >> $GITHUB_OUTPUT
-          echo "📊 SOURCE: GitHub Actions Cache"
+          echo "📊 SOURCE: GitHub Actions Cache (exact key match)"
+        elif [ "${{ steps.check-db.outputs.has_db }}" == "true" ] && [ "${{ steps.maxmind.outputs.maxmind_success }}" != "true" ]; then
+          echo "source=cache" >> $GITHUB_OUTPUT
+          echo "📊 SOURCE: GitHub Actions Cache (restore-key)"
         elif [ "${{ steps.maxmind.outputs.maxmind_success }}" == "true" ]; then
           echo "source=maxmind" >> $GITHUB_OUTPUT
           echo "📊 SOURCE: MaxMind (Fresh Download)"
