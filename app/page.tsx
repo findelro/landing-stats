@@ -286,9 +286,9 @@ export default function Home() {
 
                   {/* Countries Stats */}
                   <StatsCard className="lg:col-span-2">
-                    <div className="h-96 overflow-auto">
-                      <TableWithPercentage 
-                        data={countriesData} 
+                    <div className="h-96 overflow-y-auto overflow-x-hidden">
+                      <TableWithPercentage
+                        data={countriesData}
                         title="Countries"
                         nameKey="country"
                         showFlags={true}

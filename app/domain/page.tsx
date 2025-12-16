@@ -223,7 +223,7 @@ function DomainContent() {
 
                   {/* Countries Stats */}
                   <StatsCard className="lg:col-span-2">
-                    <div className="h-96 overflow-auto">
+                    <div className="h-96 overflow-y-auto overflow-x-hidden">
                       <TableWithPercentage 
                         data={countriesData} 
                         title="Countries"
