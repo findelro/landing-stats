@@ -18,7 +18,7 @@
     "countries-list": "^3.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
-    "next": "15.3.1",
+    "next": "15.3.8",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.2.0",
@@ -33,7 +33,7 @@
     "@types/react-dom": "^18.2.22",
     "@types/react-simple-maps": "^3.0.6",
     "eslint": "^9",
-    "eslint-config-next": "15.3.1",
+    "eslint-config-next": "15.3.8",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
