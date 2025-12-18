@@ -209,7 +209,7 @@ def normalize_user_agent(user_agent_string):
             browser = 'Chrome'
 
         # Consolidate Safari variants into single "Safari" entry
-        if browser in ['Mobile Safari', 'Safari Mobile']:
+        if browser in ['Mobile Safari', 'Safari Mobile', 'Mobile Safari UI/WKWebView']:
             browser = 'Safari'
 
         # Simple device detection

@@ -116,7 +116,7 @@ export default function TableWithPercentage<T extends TableData>({
       const href = `/referrer?domain=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
 
       return (
-        <Link href={href} className="flex items-center hover:text-blue-600 cursor-pointer">
+        <Link href={href} className="flex items-center min-w-0 hover:text-blue-600 cursor-pointer">
           {title === 'OS' ? (
             <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
               <OSIcon osName={displayName} size={20} />
@@ -145,7 +145,7 @@ export default function TableWithPercentage<T extends TableData>({
               />
             </div>
           ) : null}
-          <span>{displayName}</span>
+          <span className="truncate">{displayName}</span>
         </Link>
       );
     }
@@ -154,8 +154,8 @@ export default function TableWithPercentage<T extends TableData>({
       const href = `/domain?domain=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
 
       return (
-        <Link href={href} className="flex items-center hover:text-blue-600">
-          <span>{displayName}</span>
+        <Link href={href} className="flex items-center min-w-0 hover:text-blue-600">
+          <span className="truncate">{displayName}</span>
         </Link>
       );
     }
@@ -164,14 +164,14 @@ export default function TableWithPercentage<T extends TableData>({
       const href = `/action-type?actionType=${encodeURIComponent(displayName)}${startDate ? `&startDate=${startDate}` : ''}${endDate ? `&endDate=${endDate}` : ''}`;
 
       return (
-        <Link href={href} className="flex items-center hover:text-blue-600">
-          <span>{displayName}</span>
+        <Link href={href} className="flex items-center min-w-0 hover:text-blue-600">
+          <span className="truncate">{displayName}</span>
         </Link>
       );
     }
 
     return (
-      <div className="flex items-center">
+      <div className="flex items-center min-w-0">
         {title === 'OS' ? (
           <div className="w-5 h-5 mr-2 relative flex-shrink-0 flex items-center justify-center">
             <OSIcon osName={displayName} size={20} />
@@ -200,7 +200,7 @@ export default function TableWithPercentage<T extends TableData>({
             />
           </div>
         ) : null}
-        <span>{displayName}</span>
+        <span className="truncate">{displayName}</span>
       </div>
     );
   };
@@ -213,7 +213,7 @@ export default function TableWithPercentage<T extends TableData>({
             <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 tracking-wider">
               {title}
             </th>
-            <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 tracking-wider">
+            <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 tracking-wider w-32 min-w-[128px]">
               Visitors
             </th>
           </tr>
@@ -230,40 +230,25 @@ export default function TableWithPercentage<T extends TableData>({
                 key={index}
                 className="hover:bg-gray-50"
               >
-                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-0">
                   {showFlags ? (
-                    <div className="flex items-center">
-                      <span className="mr-2 w-5 h-5 flex items-center justify-center">{getCountryFlag(keyValue)}</span>
-                      <span>{keyValue === 'ZZ' ? 'Other' : (countries[keyValue.toUpperCase() as keyof typeof countries]?.name || 'Other')}</span>
+                    <div className="flex items-center min-w-0">
+                      <span className="mr-2 w-5 h-5 flex items-center justify-center flex-shrink-0">{getCountryFlag(keyValue)}</span>
+                      <span className="truncate">{keyValue === 'ZZ' ? 'Other' : (countries[keyValue.toUpperCase() as keyof typeof countries]?.name || 'Other')}</span>
                     </div>
                   ) : (
                     renderNameCell(item, index, keyValue, displayName)
                   )}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
-                  <div className="relative flex items-center justify-end h-full">
-                    <span className="font-semibold text-gray-900 pr-[52px]">
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="font-semibold text-gray-900">
                       {item.visitors.toLocaleString()}
                     </span>
-                    <div className="absolute right-[40px] top-1/2 transform -translate-y-1/2 w-px h-5 bg-gray-900"></div>
-                    <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
-                      {/* Container for percentage and bar */}
-                      <div className="relative flex items-center">
-                        {/* Bar graph extending to the right */}
-                        <div className="absolute left-0 w-[120px]">
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2 left-0 h-5 bg-blue-50"
-                            style={{
-                              width: `calc(60px * ${item.percentage} / 100)`,
-                            }}
-                          ></div>
-                        </div>
-                        {/* Percentage text */}
-                        <span className="relative z-10 w-[40px] text-center text-gray-900 px-1 py-0.5">
-                          {item.percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
+                    <div className="w-px h-5 bg-gray-900 flex-shrink-0"></div>
+                    <span className="w-9 text-gray-900 flex-shrink-0">
+                      {item.percentage.toFixed(0)}%
+                    </span>
                   </div>
                 </td>
               </tr>
