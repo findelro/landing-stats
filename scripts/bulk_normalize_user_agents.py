@@ -212,6 +212,10 @@ def normalize_user_agent(user_agent_string):
         if browser in ['Mobile Safari', 'Safari Mobile', 'Mobile Safari UI/WKWebView']:
             browser = 'Safari'
 
+        # Consolidate Opera variants into single "Opera" entry
+        if browser in ['Opera Mini', 'Opera Mobile']:
+            browser = 'Opera'
+
         # Simple device detection
         ua_lower = user_agent_string.lower()
         if 'mobile' in ua_lower or 'phone' in ua_lower:

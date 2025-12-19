@@ -147,12 +147,13 @@ BEGIN
   SELECT json_agg(referrer_result) INTO referrer_data FROM referrer_result;
 
   -- Get browser stats with bot grouping at query time + rare item grouping
-  -- Also consolidate Safari variants (Mobile Safari, Safari Mobile, Mobile Safari UI/WKWebView) into "Safari"
+  -- Also consolidate browser variants into canonical names
   WITH filtered_views AS (
     SELECT
       CASE
         WHEN pv.is_bot = true THEN 'Bot'
         WHEN pv.browser_normalized IN ('Mobile Safari', 'Safari Mobile', 'Mobile Safari UI/WKWebView') THEN 'Safari'
+        WHEN pv.browser_normalized IN ('Opera Mini', 'Opera Mobile') THEN 'Opera'
         ELSE COALESCE(pv.browser_normalized, 'Other')
       END AS browser,
       pv.domain_normalized,
