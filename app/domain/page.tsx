@@ -48,6 +48,16 @@ const InteractiveVectorMap = dynamic(() => import('@/components/VectorMap'), {
   )
 });
 
+// Dynamically import the PageviewsChart component with no SSR
+const PageviewsChart = dynamic(() => import('@/components/PageviewsChart'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+    </div>
+  )
+});
+
 function DomainContent() {
   const searchParams = useSearchParams();
   const domain = searchParams.get('domain');
@@ -67,6 +77,8 @@ function DomainContent() {
   const [osData, setOsData] = useState<OSStats[]>([]);
   const [devicesData, setDevicesData] = useState<DeviceStats[]>([]);
   const [countriesData, setCountriesData] = useState<CountryStats[]>([]);
+  const [pageviewsByDay, setPageviewsByDay] = useState<{ day: string; pageviews: number }[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [showAllHits, setShowAllHits] = useState(false);
   const [hitsToShow, setHitsToShow] = useState<number>(APP_CONFIG.TABLE_PAGINATION.DETAIL_HITS.INITIAL_ITEMS);
   const INITIAL_HITS_TO_SHOW = APP_CONFIG.TABLE_PAGINATION.DETAIL_HITS.INITIAL_ITEMS;
@@ -110,13 +122,13 @@ function DomainContent() {
         const result = await response.json();
         const domainData = result.data;
         
-        console.log("Domain hits with country data:", domainData.hits);
-        
         setHits(domainData.hits);
         setBrowsersData(domainData.browsers);
         setOsData(domainData.os);
         setDevicesData(domainData.devices);
         setCountriesData(domainData.countries);
+        setPageviewsByDay(domainData.pageviewsByDay || []);
+        setTotalCount(domainData.totalCount || 0);
       } catch (err) {
         console.error('Error fetching domain stats:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -155,7 +167,7 @@ function DomainContent() {
             <div className="flex justify-between items-center">
               {!isLoading && !error && (
                 <h2 className="text-sm font-medium text-gray-700">
-                  {hits.length} pageviews found
+                  {totalCount.toLocaleString()} pageviews found
                 </h2>
               )}
               {isLoading && <div className="w-32"></div>} {/* Empty space placeholder when loading */}
@@ -203,14 +215,23 @@ function DomainContent() {
 
                   {/* Devices Stats */}
                   <StatsCard>
-                    <TableWithPercentage 
-                      data={devicesData} 
+                    <TableWithPercentage
+                      data={devicesData}
                       title="Devices"
                       nameKey="device"
                       showAllByDefault={true}
                     />
                   </StatsCard>
                 </div>
+
+                {/* Pageviews Over Time Chart */}
+                <StatsCard title="Pageviews Over Time">
+                  <PageviewsChart
+                    pageviewsByDay={pageviewsByDay}
+                    startDate={dateRange.startDate}
+                    endDate={dateRange.endDate}
+                  />
+                </StatsCard>
 
                 {/* World Map and Countries side by side - Reusing the same components from homepage */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

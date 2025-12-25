@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getDomainHits, 
-  getBrowserStatsForDomain, 
-  getOSStatsForDomain, 
-  getDeviceStatsForDomain, 
-  getCountryStatsForDomain 
+import {
+  getDomainHits,
+  getBrowserStatsForDomain,
+  getOSStatsForDomain,
+  getDeviceStatsForDomain,
+  getCountryStatsForDomain,
+  getDomainPageviewsByDay,
+  getDomainPageviewCount
 } from '@/lib/metrics';
 
 export async function GET(request: NextRequest) {
@@ -25,21 +27,25 @@ export async function GET(request: NextRequest) {
 
     // If type is 'all', return all domain-specific stats
     if (type === 'all') {
-      const [hits, browsers, os, devices, countries] = await Promise.all([
+      const [hits, browsers, os, devices, countries, pageviewsByDay, totalCount] = await Promise.all([
         getDomainHits(domain, startDate, endDate, includeBots),
         getBrowserStatsForDomain(domain, startDate, endDate, includeBots),
         getOSStatsForDomain(domain, startDate, endDate, includeBots),
         getDeviceStatsForDomain(domain, startDate, endDate, includeBots),
-        getCountryStatsForDomain(domain, startDate, endDate, includeBots)
+        getCountryStatsForDomain(domain, startDate, endDate, includeBots),
+        getDomainPageviewsByDay(domain, startDate, endDate, includeBots),
+        getDomainPageviewCount(domain, startDate, endDate, includeBots)
       ]);
-      
-      return NextResponse.json({ 
+
+      return NextResponse.json({
         data: {
           hits,
           browsers,
           os,
           devices,
-          countries
+          countries,
+          pageviewsByDay,
+          totalCount
         }
       });
     }

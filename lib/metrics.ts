@@ -116,7 +116,9 @@ export const getDomainHits = async (domain: string, startDate: string, endDate: 
     query = query.neq('browser_normalized', 'Bot');
   }
 
-  const { data, error } = await query.order('timestamp', { ascending: false });
+  const { data, error } = await query
+    .order('timestamp', { ascending: false })
+    .limit(10000);
   
   if (error) {
     console.error("Error fetching domain hits:", error);
@@ -124,7 +126,8 @@ export const getDomainHits = async (domain: string, startDate: string, endDate: 
   }
   
   if (!data || data.length === 0) return [];
-  
+
+  console.log(`getDomainHits: returned ${data.length} rows for ${domain}`);
   console.log("Raw database results with country:", data.slice(0, 3));
   
   const hits = data.map(item => ({
@@ -457,4 +460,56 @@ export const getCountryStatsForDomain = async (domain: string, startDate: string
   }));
 
   return countryStats.sort((a, b) => b.visitors - a.visitors);
+};
+
+// Get pageviews by day for a domain (uses RPC to bypass PostgREST 1000 row limit)
+export interface DailyPageviews {
+  day: string;
+  pageviews: number;
+}
+
+export const getDomainPageviewsByDay = async (
+  domain: string,
+  startDate: string,
+  endDate: string,
+  includeBots: boolean = true
+): Promise<DailyPageviews[]> => {
+  const { data, error } = await supabase.rpc('get_domain_pageviews_by_day', {
+    p_domain: domain,
+    p_start_date: `${startDate}T00:00:00Z`,
+    p_end_date: `${endDate}T23:59:59Z`,
+    p_include_bots: includeBots,
+  });
+
+  if (error) {
+    console.error('Error fetching domain pageviews by day:', error);
+    return [];
+  }
+
+  return (data || []).map((row: { day: string; pageviews: number }) => ({
+    day: row.day,
+    pageviews: Number(row.pageviews),
+  }));
+};
+
+// Get total pageview count for a domain (uses RPC to bypass PostgREST 1000 row limit)
+export const getDomainPageviewCount = async (
+  domain: string,
+  startDate: string,
+  endDate: string,
+  includeBots: boolean = true
+): Promise<number> => {
+  const { data, error } = await supabase.rpc('get_domain_pageview_count', {
+    p_domain: domain,
+    p_start_date: `${startDate}T00:00:00Z`,
+    p_end_date: `${endDate}T23:59:59Z`,
+    p_include_bots: includeBots,
+  });
+
+  if (error) {
+    console.error('Error fetching domain pageview count:', error);
+    return 0;
+  }
+
+  return Number(data) || 0;
 }; 
