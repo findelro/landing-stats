@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Roboto_Mono } from "next/font/google";
 import "./globals.css";
+import ChunkErrorBoundary from "@/components/ChunkErrorBoundary";
 
 const robotoMono = Roboto_Mono({
   subsets: ["latin"],
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={robotoMono.variable}>
       <body className={robotoMono.className}>
-        <div className="min-h-screen bg-gray-50">
-          {children}
-        </div>
+        <ChunkErrorBoundary>
+          <div className="min-h-screen bg-gray-50">
+            {children}
+          </div>
+        </ChunkErrorBoundary>
       </body>
     </html>
   );
