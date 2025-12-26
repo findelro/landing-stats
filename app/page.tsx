@@ -44,6 +44,7 @@ export default function Home() {
   const [osData, setOsData] = useState<OSStats[]>([]);
   const [devicesData, setDevicesData] = useState<DeviceStats[]>([]);
   const [countriesData, setCountriesData] = useState<CountryStats[]>([]);
+  const [earliestDate, setEarliestDate] = useState<string | undefined>();
   
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -155,6 +156,22 @@ export default function Home() {
     fetchStats();
   }, [dateRange.startDate, dateRange.endDate, includeBots]);
 
+  // Fetch earliest date for LTD button
+  useEffect(() => {
+    const fetchEarliestDate = async () => {
+      try {
+        const response = await fetch('/api/stats/earliest');
+        if (response.ok) {
+          const data = await response.json();
+          setEarliestDate(data.earliestDate);
+        }
+      } catch (err) {
+        console.error('Error fetching earliest date:', err);
+      }
+    };
+    fetchEarliestDate();
+  }, []);
+
   return (
     <>
       <Header title="Domain Analytics Dashboard" />
@@ -169,6 +186,7 @@ export default function Home() {
                 onRangeChange={handleDateRangeChange}
                 includeBots={includeBots}
                 onIncludeBotsChange={handleIncludeBotsChange}
+                earliestDate={earliestDate}
               />
             </div>
 

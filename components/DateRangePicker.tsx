@@ -7,6 +7,7 @@ interface DateRangePickerProps {
   includeBots: boolean;
   onIncludeBotsChange: (include: boolean) => void;
   className?: string;
+  earliestDate?: string; // ISO date string for LTD (life-to-date) button
 }
 
 export default function DateRangePicker({
@@ -16,6 +17,7 @@ export default function DateRangePicker({
   includeBots,
   onIncludeBotsChange,
   className = '',
+  earliestDate,
 }: DateRangePickerProps) {
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onRangeChange(e.target.value, endDate);
@@ -55,9 +57,18 @@ export default function DateRangePicker({
     const end = new Date();
     const start = new Date();
     start.setDate(end.getDate() - 30);
-    
+
     onRangeChange(
       start.toISOString().split('T')[0],
+      end.toISOString().split('T')[0]
+    );
+  };
+
+  const selectLTD = () => {
+    if (!earliestDate) return;
+    const end = new Date();
+    onRangeChange(
+      earliestDate,
       end.toISOString().split('T')[0]
     );
   };
@@ -125,6 +136,16 @@ export default function DateRangePicker({
         >
           Last 30 days
         </button>
+        {earliestDate && (
+          <button
+            type="button"
+            onClick={selectLTD}
+            className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            title="Life to date - show all data from the beginning"
+          >
+            LTD
+          </button>
+        )}
       </div>
     </div>
   );

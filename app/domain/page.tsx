@@ -79,6 +79,7 @@ function DomainContent() {
   const [countriesData, setCountriesData] = useState<CountryStats[]>([]);
   const [pageviewsByDay, setPageviewsByDay] = useState<{ day: string; pageviews: number }[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [earliestDate, setEarliestDate] = useState<string | undefined>();
   const [showAllHits, setShowAllHits] = useState(false);
   const [hitsToShow, setHitsToShow] = useState<number>(APP_CONFIG.TABLE_PAGINATION.DETAIL_HITS.INITIAL_ITEMS);
   const INITIAL_HITS_TO_SHOW = APP_CONFIG.TABLE_PAGINATION.DETAIL_HITS.INITIAL_ITEMS;
@@ -157,6 +158,23 @@ function DomainContent() {
     }
   }, [hits]);
 
+  // Fetch earliest date for this domain (LTD button)
+  useEffect(() => {
+    if (!domain) return;
+    const fetchEarliestDate = async () => {
+      try {
+        const response = await fetch(`/api/stats/earliest?domain=${encodeURIComponent(domain)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setEarliestDate(data.earliestDate);
+        }
+      } catch (err) {
+        console.error('Error fetching earliest date:', err);
+      }
+    };
+    fetchEarliestDate();
+  }, [domain]);
+
   return (
     <>
       <Header title={`Domain Analysis: ${domain || 'Other'}`} />
@@ -177,6 +195,7 @@ function DomainContent() {
                 onRangeChange={handleDateRangeChange}
                 includeBots={includeBots}
                 onIncludeBotsChange={handleIncludeBotsChange}
+                earliestDate={earliestDate}
               />
             </div>
 
