@@ -59,8 +59,7 @@ export async function GET(request: NextRequest) {
         .from('domain_market_sales_history')
         .select('domain, sale_price')
         .in('domain', similarDomains)
-        .order('sale_price', { ascending: false })
-        .limit(10);
+        .order('sale_price', { ascending: false });
 
       comparables = (salesData || []).map(s => ({
         domain: s.domain,
