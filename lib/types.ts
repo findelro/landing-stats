@@ -69,4 +69,19 @@ export interface DomainHit {
   ip: string;
   timestamp: string;
   country: string;
+}
+
+export interface DomainComparable {
+  domain: string;
+  price: number;
+}
+
+export interface DomainPricingData {
+  domain: string;
+  minOffer: number | null;
+  buyNowPrice: number | null;
+  estimate: number | null;
+  comparables: DomainComparable[];
+  regYear: number | null;
+  status: string | null;
 } 

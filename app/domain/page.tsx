@@ -8,13 +8,15 @@ import StatsCard from '@/components/StatsCard';
 import TableWithPercentage from '@/components/TableWithPercentage';
 import Header from '@/components/Header';
 import dynamic from 'next/dynamic';
-import { 
-  DomainHit, 
-  BrowserStats, 
-  OSStats, 
-  DeviceStats, 
-  CountryStats 
+import {
+  DomainHit,
+  BrowserStats,
+  OSStats,
+  DeviceStats,
+  CountryStats,
+  DomainPricingData
 } from '@/lib/types';
+import DomainPricing from '@/components/DomainPricing';
 import { APP_CONFIG } from '@/lib/config';
 import PaginatedTableFooter from '@/components/PaginatedTableFooter';
 
@@ -80,6 +82,8 @@ function DomainContent() {
   const [pageviewsByDay, setPageviewsByDay] = useState<{ day: string; pageviews: number }[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [earliestDate, setEarliestDate] = useState<string | undefined>();
+  const [pricingData, setPricingData] = useState<DomainPricingData | null>(null);
+  const [isPricingLoading, setIsPricingLoading] = useState(true);
   const [showAllHits, setShowAllHits] = useState(false);
   const [hitsToShow, setHitsToShow] = useState<number>(APP_CONFIG.TABLE_PAGINATION.DETAIL_HITS.INITIAL_ITEMS);
   const INITIAL_HITS_TO_SHOW = APP_CONFIG.TABLE_PAGINATION.DETAIL_HITS.INITIAL_ITEMS;
@@ -175,12 +179,35 @@ function DomainContent() {
     fetchEarliestDate();
   }, [domain]);
 
+  // Fetch domain pricing data
+  useEffect(() => {
+    if (!domain) return;
+    const fetchPricingData = async () => {
+      setIsPricingLoading(true);
+      try {
+        const response = await fetch(`/api/domain-pricing?domain=${encodeURIComponent(domain)}`);
+        if (response.ok) {
+          const result = await response.json();
+          setPricingData(result.data);
+        }
+      } catch (err) {
+        console.error('Error fetching pricing data:', err);
+      } finally {
+        setIsPricingLoading(false);
+      }
+    };
+    fetchPricingData();
+  }, [domain]);
+
   return (
     <>
       <Header title={`Domain Analysis: ${domain || 'Other'}`} />
       <main>
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
+            {/* Domain Pricing Info */}
+            <DomainPricing data={pricingData} isLoading={isPricingLoading} />
+
             {/* Date picker */}
             <div className="flex justify-between items-center">
               {!isLoading && !error && (
