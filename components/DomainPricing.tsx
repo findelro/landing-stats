@@ -1,10 +1,12 @@
 'use client';
 
-import { DomainPricingData } from '@/lib/types';
+import { useState, useEffect, useCallback } from 'react';
+import { DomainPricingData, DomainComparable } from '@/lib/types';
 
 interface DomainPricingProps {
   data: DomainPricingData | null;
   isLoading: boolean;
+  sourceDomain: string;
 }
 
 function formatPrice(price: number | null): string {
@@ -17,13 +19,66 @@ function formatPrice(price: number | null): string {
   }).format(price);
 }
 
-function calculateAvgComparable(comparables: { domain: string; price: number }[]): number | null {
+function calculateAvgComparable(comparables: DomainComparable[]): number | null {
   if (comparables.length === 0) return null;
   const sum = comparables.reduce((acc, c) => acc + c.price, 0);
   return Math.round(sum / comparables.length);
 }
 
-export default function DomainPricing({ data, isLoading }: DomainPricingProps) {
+export default function DomainPricing({ data, isLoading, sourceDomain }: DomainPricingProps) {
+  // Local state for comparables - enables optimistic updates
+  const [comparables, setComparables] = useState<DomainComparable[]>([]);
+  const [deletingDomain, setDeletingDomain] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Sync comparables from props when data changes
+  useEffect(() => {
+    if (data?.comparables) {
+      setComparables(data.comparables);
+    }
+  }, [data?.comparables]);
+
+  // Clear error after 3 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  // Optimistic delete with rollback on failure
+  const handleDismissComparable = useCallback(async (similarDomain: string) => {
+    // Store current state for potential rollback
+    const previousComparables = [...comparables];
+
+    // Optimistically remove from UI immediately
+    setComparables(prev => prev.filter(c => c.domain !== similarDomain));
+    setDeletingDomain(similarDomain);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/domain-pricing', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceDomain,
+          similarDomain
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to dismiss comparable');
+      }
+    } catch (err) {
+      // Rollback on failure
+      setComparables(previousComparables);
+      setError(`Failed to dismiss ${similarDomain}`);
+      console.error('Error dismissing comparable:', err);
+    } finally {
+      setDeletingDomain(null);
+    }
+  }, [comparables, sourceDomain]);
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -39,15 +94,22 @@ export default function DomainPricing({ data, isLoading }: DomainPricingProps) {
     );
   }
 
-  if (!data || (data.minOffer === null && data.estimate === null && data.comparables.length === 0 && data.regYear === null)) {
-    return null; // Don't show anything if no pricing data
+  if (!data || (data.minOffer === null && data.estimate === null && comparables.length === 0 && data.regYear === null)) {
+    return null;
   }
 
-  const avgComparable = calculateAvgComparable(data.comparables);
+  const avgComparable = calculateAvgComparable(comparables);
   const salePrice = data.minOffer;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 overflow-hidden">
+      {/* Error notification */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Main Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-8">
         {/* Sale Price */}
@@ -111,30 +173,38 @@ export default function DomainPricing({ data, isLoading }: DomainPricingProps) {
         )}
       </div>
 
-      {/* Comparables Section - Adobe-style dismissible tags */}
-      {data.comparables.length > 0 && (
-        <div className="mt-6 pt-5 border-t border-gray-200 w-full">
+      {/* Comparables Section - Dismissible tags */}
+      {comparables.length > 0 && (
+        <div className="mt-6 pt-5 border-t border-gray-200">
           <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
             Comparable Sales
           </div>
-          <div className="flex flex-wrap gap-2 max-w-full">
-            {data.comparables.map((comp, index) => (
-              <button
-                key={index}
-                type="button"
-                className="inline-flex items-center gap-3 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                onClick={() => {
-                  // TODO: Implement delete functionality
-                  console.log('Delete comparable:', comp.domain);
-                }}
-                aria-label={`Remove ${comp.domain}`}
+          <div className="flex flex-wrap gap-2">
+            {comparables.map((comp) => (
+              <div
+                key={comp.domain}
+                className={`inline-flex items-center bg-white border border-gray-300 rounded-lg text-sm ${
+                  deletingDomain === comp.domain ? 'opacity-50' : ''
+                }`}
               >
-                <span>
+                <span className="px-3 py-2">
                   <span className="font-medium text-gray-700">{comp.domain}</span>
                   <span className="ml-2 text-gray-400">{formatPrice(comp.price)}</span>
                 </span>
-                <span className="text-gray-400 text-lg leading-none">&times;</span>
-              </button>
+                <button
+                  type="button"
+                  disabled={deletingDomain === comp.domain}
+                  className={`px-3 py-2 border-l border-gray-300 text-gray-400 transition-colors ${
+                    deletingDomain === comp.domain
+                      ? 'cursor-not-allowed'
+                      : 'cursor-pointer hover:bg-gray-100 hover:text-gray-600'
+                  }`}
+                  onClick={() => handleDismissComparable(comp.domain)}
+                  aria-label={`Remove ${comp.domain}`}
+                >
+                  <span className="text-lg leading-none">&times;</span>
+                </button>
+              </div>
             ))}
           </div>
         </div>

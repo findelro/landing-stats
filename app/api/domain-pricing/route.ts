@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * GET - Fetch domain pricing data including comparables
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -80,6 +83,47 @@ export async function GET(request: NextRequest) {
     console.error('API Error:', error);
     return NextResponse.json(
       { error: 'An error occurred while fetching domain pricing data' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH - Dismiss a comparable by setting is_relevant = false
+ * Body: { sourceDomain: string, similarDomain: string }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { sourceDomain, similarDomain } = body;
+
+    if (!sourceDomain || !similarDomain) {
+      return NextResponse.json(
+        { error: 'sourceDomain and similarDomain are required' },
+        { status: 400 }
+      );
+    }
+
+    // Update is_relevant to false for this comparable mapping
+    const { error } = await supabase
+      .from('domain_comparables_map')
+      .update({ is_relevant: false, updated_at: new Date().toISOString() })
+      .eq('source_domain', sourceDomain)
+      .eq('similar_domain', similarDomain);
+
+    if (error) {
+      console.error('Error dismissing comparable:', error);
+      return NextResponse.json(
+        { error: 'Failed to dismiss comparable' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: 'An error occurred while dismissing comparable' },
       { status: 500 }
     );
   }

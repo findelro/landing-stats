@@ -206,7 +206,7 @@ function DomainContent() {
         <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="space-y-6">
             {/* Domain Pricing Info */}
-            <DomainPricing data={pricingData} isLoading={isPricingLoading} />
+            <DomainPricing data={pricingData} isLoading={isPricingLoading} sourceDomain={domain || ''} />
 
             {/* Date picker */}
             <div className="flex justify-between items-center">
