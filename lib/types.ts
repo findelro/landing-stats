@@ -90,12 +90,12 @@ export interface SniperDomain {
   domain_name: string;
   state: string;
   strategy: string;
-  max_bid: number;
+  max_bid: number | null;
   current_price: number | null;
   minimum_next_bid: number | null;
   winning: boolean | null;
   current_end_time: string | null;
   original_end_time: string | null;
-  auction_id: number | null;
-  created_at: string;
+  auction_id: string | null;
+  created_at: string | null;
 } 
