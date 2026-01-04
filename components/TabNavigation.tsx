@@ -9,7 +9,8 @@ export default function TabNavigation() {
 
   const tabs = [
     { name: 'Page Views', href: '/', current: pathname === '/' },
-    { name: 'Actions', href: '/actions', current: pathname === '/actions' }
+    { name: 'Actions', href: '/actions', current: pathname === '/actions' },
+    { name: 'Bidding', href: '/bidding', current: pathname === '/bidding' }
   ];
 
   return (

@@ -84,4 +84,18 @@ export interface DomainPricingData {
   comparables: DomainComparable[];
   regYear: number | null;
   status: string | null;
+}
+
+export interface SniperDomain {
+  domain_name: string;
+  state: string;
+  strategy: string;
+  max_bid: number;
+  current_price: number | null;
+  minimum_next_bid: number | null;
+  winning: boolean | null;
+  current_end_time: string | null;
+  original_end_time: string | null;
+  auction_id: number | null;
+  created_at: string;
 } 

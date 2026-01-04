@@ -9,7 +9,7 @@ interface HeaderProps {
 
 export default function Header({ title = "Domain Analytics Dashboard" }: HeaderProps) {
   const pathname = usePathname();
-  const isMainPage = pathname === '/' || pathname === '/actions';
+  const isMainPage = pathname === '/' || pathname === '/actions' || pathname === '/bidding';
 
   return (
     <header className="bg-white shadow-sm">
