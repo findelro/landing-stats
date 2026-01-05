@@ -12,7 +12,7 @@ export default function Header({ title = "Domain Analytics Dashboard" }: HeaderP
   const isMainPage = pathname === '/' || pathname === '/actions' || pathname === '/bidding';
 
   return (
-    <header className="bg-white shadow-sm">
+    <header className="bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {isMainPage ? (
           // Show tabs for main pages (Page Views and Actions)

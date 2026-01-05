@@ -1,39 +1,48 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import {
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  navigationMenuTriggerStyle,
+} from '@/components/ui/navigation-menu';
+import { cn } from '@/lib/utils';
+
+const tabs = [
+  { name: 'Page Views', href: '/' },
+  { name: 'Actions', href: '/actions' },
+  { name: 'Bidding', href: '/bidding' }
+];
 
 export default function TabNavigation() {
   const pathname = usePathname();
 
-  const tabs = [
-    { name: 'Page Views', href: '/', current: pathname === '/' },
-    { name: 'Actions', href: '/actions', current: pathname === '/actions' },
-    { name: 'Bidding', href: '/bidding', current: pathname === '/bidding' }
-  ];
-
   return (
-    <div className="border-b border-gray-200">
-      <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.name}
-            href={tab.href}
-            className={`
-              whitespace-nowrap py-4 px-1 border-b-2 text-2xl font-bold
-              ${tab.current
-                ? 'border-blue-500 text-gray-900'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }
-              transition-colors duration-200
-            `}
-            aria-current={tab.current ? 'page' : undefined}
-          >
-            {tab.name}
-          </Link>
-        ))}
-      </nav>
-    </div>
+    <NavigationMenu className="justify-start max-w-none">
+      <NavigationMenuList className="justify-start gap-1">
+        {tabs.map((tab) => {
+          const isActive = pathname === tab.href;
+          return (
+            <NavigationMenuItem key={tab.name}>
+              <NavigationMenuLink asChild active={isActive}>
+                <Link
+                  href={tab.href}
+                  className={cn(
+                    navigationMenuTriggerStyle(),
+                    "text-xl font-semibold h-auto py-2",
+                    isActive && "bg-accent"
+                  )}
+                >
+                  {tab.name}
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+          );
+        })}
+      </NavigationMenuList>
+    </NavigationMenu>
   );
 }

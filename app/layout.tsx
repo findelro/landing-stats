@@ -22,7 +22,7 @@ export default function RootLayout({
     <html lang="en" className={robotoMono.variable}>
       <body className={robotoMono.className}>
         <ChunkErrorBoundary>
-          <div className="min-h-screen bg-gray-50">
+          <div className="min-h-screen bg-background">
             {children}
           </div>
         </ChunkErrorBoundary>
